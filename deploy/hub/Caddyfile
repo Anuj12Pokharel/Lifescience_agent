@@ -1,84 +1,53 @@
 # =============================================================================
-# HUB Caddyfile — Contabo Server Reverse Proxy
-# Auto-manages SSL via Let's Encrypt
+# HUB Caddyfile — Internal Router
+# The main server reverse proxy will handle SSL/TLS and forward traffic here
 # =============================================================================
 
-# Redirect bare domain to n8n
-lifescienceaiagents.com {
-    redir https://n8n.lifescienceaiagents.com{uri} permanent
+{
+    auto_https off
 }
 
-# ── n8n MASTER UI/Editor ───────────────────────────────────────────────────
-n8n.lifescienceaiagents.com {
-    tls manoharaya03@gmail.com
-
-    reverse_proxy n8n-master:5678 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
+:80 {
+    # ── Django REST API ────────────────────────────────────────────────────────
+    @api host api.lifescienceaiagents.com
+    handle @api {
+        reverse_proxy django-api:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
+    # ── n8n MASTER UI/Editor ───────────────────────────────────────────────────
+    @n8n host n8n.lifescienceaiagents.com
+    handle @n8n {
+        reverse_proxy n8n-master:5678 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
-    encode zstd gzip
-}
-
-# ── Django REST API ────────────────────────────────────────────────────────
-api.lifescienceaiagents.com {
-    tls manoharaya03@gmail.com
-
-    reverse_proxy django-api:8000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
+    # ── n8n Webhook Endpoint ───────────────────────────────────────────────────
+    @webhook host webhook.lifescienceaiagents.com
+    handle @webhook {
+        reverse_proxy n8n-master:5678 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
+    # ── Super Admin UI ─────────────────────────────────────────────────────────
+    @admin host admin.lifescienceaiagents.com
+    handle @admin {
+        reverse_proxy hub-frontend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
-
-    encode zstd gzip
-}
-
-# ── Super Admin UI (Next.js — Hub-hosted) ──────────────────────────────────
-admin.lifescienceaiagents.com {
-    tls manoharaya03@gmail.com
-
-    reverse_proxy hub-frontend:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-    }
-
-    encode zstd gzip
-}
-
-# ── n8n Webhook Endpoint (dedicated subdomain for webhooks) ────────────────
-webhook.lifescienceaiagents.com {
-    tls manoharaya03@gmail.com
-
-    reverse_proxy n8n-master:5678 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    encode zstd gzip
 }
