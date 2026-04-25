@@ -16,11 +16,11 @@ services:
     container_name: n8n
     restart: unless-stopped
     environment:
-      - N8N_HOST=www.lifescienceaiagents.com
+      - N8N_HOST=n8n.lifescienceaiagents.com
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
-      - WEBHOOK_URL=https://www.lifescienceaiagents.com/
-      - N8N_EDITOR_BASE_URL=https://www.lifescienceaiagents.com
+      - WEBHOOK_URL=https://n8n.lifescienceaiagents.com/
+      - N8N_EDITOR_BASE_URL=https://n8n.lifescienceaiagents.com
       - N8N_ENCRYPTION_KEY=REPLACE_WITH_32CHAR_RANDOM_KEY
       - GENERIC_TIMEZONE=Asia/Kathmandu
       - N8N_LOG_LEVEL=info

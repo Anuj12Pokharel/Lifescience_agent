@@ -24,7 +24,7 @@ services:
       NEXT_PUBLIC_N8N_WORKER_URL: http://n8n-worker:5679
       NEXT_PUBLIC_SPOKE_ID: ${SPOKE_ID:-spoke-a}
     expose:
-      - "3000"
+      - "3002"
     depends_on:
       - n8n-worker
     networks:
@@ -49,7 +49,7 @@ services:
       QUEUE_BULL_REDIS_DB: "3"
       # Local Chroma for RAG
       CHROMA_HOST: chroma
-      CHROMA_PORT: "8000"
+      CHROMA_PORT: "8001"
       # Local tenant DB
       TENANT_DB_HOST: postgres-tenant
       TENANT_DB_PORT: "5432"
@@ -103,14 +103,14 @@ services:
     restart: unless-stopped
     environment:
       CHROMA_SERVER_HOST: 0.0.0.0
-      CHROMA_SERVER_HTTP_PORT: "8000"
+      CHROMA_SERVER_HTTP_PORT: "8001"
       IS_PERSISTENT: "TRUE"
       ANONYMIZED_TELEMETRY: "FALSE"
     volumes:
       - chroma_data:/chroma/chroma
     ports:
       # Local only
-      - "127.0.0.1:8010:8000"
+      - "127.0.0.1:8010:8001"
     networks:
       - spoke-net
     labels:

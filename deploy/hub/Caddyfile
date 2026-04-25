@@ -3,13 +3,13 @@
 # Auto-manages SSL via Let's Encrypt
 # =============================================================================
 
-# Redirect bare domain to www
+# Redirect bare domain to n8n
 lifescienceaiagents.com {
-    redir https://www.lifescienceaiagents.com{uri} permanent
+    redir https://n8n.lifescienceaiagents.com{uri} permanent
 }
 
 # ── n8n MASTER UI/Editor ───────────────────────────────────────────────────
-www.lifescienceaiagents.com {
+n8n.lifescienceaiagents.com {
     tls manoharaya03@gmail.com
 
     reverse_proxy n8n-master:5678 {

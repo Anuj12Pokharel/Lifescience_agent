@@ -1,10 +1,10 @@
-# Redirect bare domain to www
+# Redirect bare domain to n8n
 lifescienceaiagents.com {
-    redir https://www.lifescienceaiagents.com{uri} permanent
+    redir https://n8n.lifescienceaiagents.com{uri} permanent
 }
 
-# Main site — Caddy auto-manages SSL via Let's Encrypt
-www.lifescienceaiagents.com {
+# n8n — Caddy auto-manages SSL via Let's Encrypt
+n8n.lifescienceaiagents.com {
     reverse_proxy n8n:5678
     tls manoharaya03@gmail.com
 }
