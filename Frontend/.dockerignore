@@ -1,0 +1,42 @@
+# Frontend .dockerignore
+# Excludes files not needed in the Docker image
+
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+.next
+out
+dist
+build
+
+# Environment files (injected at runtime, not baked in)
+.env
+.env.*
+!.env.example
+
+# Dev tools
+.eslintcache
+*.log
+
+# Git
+.git
+.gitignore
+
+# Docs
+README.md
+*.md
+ADMIN_*.md
+LOGIN_*.md
+REAL_*.md
+N8N_*.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript build info (regenerated)
+tsconfig.tsbuildinfo

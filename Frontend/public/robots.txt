@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://life-science-ai.vercel.app/sitemap.xml
+
+# Block common non-content paths
+Disallow: /api/
+Disallow: /_next/
+Disallow: /node_modules/
+Disallow: /.git/
+Disallow: /*.json$
+
+# Allow specific API endpoints for search engines
+Allow: /api/chat
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1

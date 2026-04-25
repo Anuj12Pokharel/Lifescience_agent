@@ -1,0 +1,150 @@
+# =============================================================================
+# EDGE SPOKE: CLIENT MAC MINI — Local Execution Node
+# Run this on: Each Mac Mini (Location A, Location B, ...)
+# =============================================================================
+# Customize: Set SPOKE_ID, tenant DB creds, Tailscale hub IP, CF tunnel token
+# Start: docker compose -f deploy/spoke/docker-compose.yml up -d
+# =============================================================================
+
+services:
+
+  # ── CLIENT FRONTEND (Local UI — Containerized) ────────────────────────────
+  frontend:
+    build:
+      context: ../../Frontend
+      dockerfile: Dockerfile
+    image: spoke-frontend:latest
+    container_name: ${SPOKE_ID:-spoke-a}-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Points to LOCAL Django API (hub via Tailscale) for admin calls
+      NEXT_PUBLIC_API_URL: https://api.lifescienceaiagents.com
+      # Points to local n8n worker for agent execution
+      NEXT_PUBLIC_N8N_WORKER_URL: http://n8n-worker:5679
+      NEXT_PUBLIC_SPOKE_ID: ${SPOKE_ID:-spoke-a}
+    expose:
+      - "3000"
+    depends_on:
+      - n8n-worker
+    networks:
+      - spoke-net
+    labels:
+      - "spoke.service=frontend"
+      - "spoke.id=${SPOKE_ID:-spoke-a}"
+
+  # ── n8n WORKER (Queue Worker — Local Execution) ───────────────────────────
+  # Pulls jobs from Hub Redis via Tailscale VPN
+  n8n-worker:
+    image: n8nio/n8n:latest
+    container_name: ${SPOKE_ID:-spoke-a}-n8n-worker
+    restart: unless-stopped
+    env_file:
+      - n8n-worker.env
+    environment:
+      # Connect to Hub Redis via Tailscale private IP
+      QUEUE_BULL_REDIS_HOST: ${HUB_TAILSCALE_IP:?HUB_TAILSCALE_IP must be set}
+      QUEUE_BULL_REDIS_PORT: "6379"
+      QUEUE_BULL_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      QUEUE_BULL_REDIS_DB: "3"
+      # Local Chroma for RAG
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      # Local tenant DB
+      TENANT_DB_HOST: postgres-tenant
+      TENANT_DB_PORT: "5432"
+      TENANT_DB_NAME: ${TENANT_DB_NAME:-tenant_db}
+      TENANT_DB_USER: ${TENANT_DB_USER:-tenant_user}
+      TENANT_DB_PASSWORD: ${TENANT_DB_PASSWORD:-tenant_password}
+    volumes:
+      - n8n_worker_data:/home/node/.n8n
+    expose:
+      - "5679"
+    ports:
+      - "5679:5679"
+    depends_on:
+      postgres-tenant:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    networks:
+      - spoke-net
+    labels:
+      - "spoke.service=n8n-worker"
+      - "spoke.id=${SPOKE_ID:-spoke-a}"
+
+  # ── TENANT DB (Local PostgreSQL — Client Data) ────────────────────────────
+  postgres-tenant:
+    image: postgres:16-alpine
+    container_name: ${SPOKE_ID:-spoke-a}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TENANT_DB_NAME:-tenant_db}
+      POSTGRES_USER: ${TENANT_DB_USER:-tenant_user}
+      POSTGRES_PASSWORD: ${TENANT_DB_PASSWORD:-tenant_password}
+    volumes:
+      - postgres_tenant_data:/var/lib/postgresql/data
+    ports:
+      # Local only — not exposed externally
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TENANT_DB_USER:-tenant_user} -d ${TENANT_DB_NAME:-tenant_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - spoke-net
+
+  # ── CHROMA (Vector DB — Local RAG) ────────────────────────────────────────
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: ${SPOKE_ID:-spoke-a}-chroma
+    restart: unless-stopped
+    environment:
+      CHROMA_SERVER_HOST: 0.0.0.0
+      CHROMA_SERVER_HTTP_PORT: "8000"
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      # Local only
+      - "127.0.0.1:8010:8000"
+    networks:
+      - spoke-net
+    labels:
+      - "spoke.service=chroma"
+
+  # ── CLOUDFLARED (Tunnel Connector — Public HTTP Inbound) ──────────────────
+  # Exposes the local frontend to external users via Cloudflare's edge
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ${SPOKE_ID:-spoke-a}-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN must be set}
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+    networks:
+      - spoke-net
+    labels:
+      - "spoke.service=cloudflared"
+
+# ── NETWORKS ──────────────────────────────────────────────────────────────────
+networks:
+  spoke-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# ── VOLUMES ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_tenant_data:
+    driver: local
+  chroma_data:
+    driver: local
+  n8n_worker_data:
+    driver: local

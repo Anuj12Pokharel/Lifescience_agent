@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>Verify your email – {{ app_name }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+
+  <!-- Wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#f0f4f8;padding:40px 16px;">
+    <tr>
+      <td align="center">
+
+        <!-- Card -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:560px;background:#ffffff;border-radius:12px;
+                      box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center"
+                style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+                       padding:36px 40px 32px;">
+              <div style="width:48px;height:48px;background:rgba(255,255,255,0.15);
+                          border-radius:12px;display:inline-flex;align-items:center;
+                          justify-content:center;margin-bottom:16px;">
+                <!-- Shield/Check icon -->
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                     xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944
+                           a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591
+                           3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622
+                           0-1.042-.133-2.052-.382-3.016z"
+                        stroke="#ffffff" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;
+                         letter-spacing:-0.3px;">
+                {{ app_name }}
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <h2 style="margin:0 0 12px;color:#111827;font-size:20px;font-weight:700;">
+                Verify your email address
+              </h2>
+              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.7;">
+                Thanks for signing up! Click the button below to confirm your email
+                address and activate your account.
+              </p>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:4px 0 32px;">
+                    <a href="{{ verify_url }}"
+                       style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);
+                              color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;
+                              padding:14px 36px;border-radius:8px;letter-spacing:0.2px;">
+                      Verify Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fallback link -->
+              <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">
+                Button not working? Copy and paste this link into your browser:
+              </p>
+              <p style="margin:0 0 28px;word-break:break-all;">
+                <a href="{{ verify_url }}"
+                   style="color:#4f46e5;font-size:13px;text-decoration:none;">
+                  {{ verify_url }}
+                </a>
+              </p>
+
+              <!-- Expiry notice -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:#fafafa;border:1px solid #e5e7eb;
+                             border-radius:8px;padding:14px 18px;">
+                    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;">
+                      ⏱ This link expires in <strong style="color:#374151;">3 days</strong>.
+                      If it expires, you can request a new one from the login page.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #f3f4f6;margin:0;"/>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 40px 32px;">
+              <p style="margin:0 0 6px;color:#9ca3af;font-size:12px;line-height:1.6;">
+                If you didn't create an account with <strong>{{ app_name }}</strong>,
+                you can safely ignore this email.
+              </p>
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                © {{ year }} {{ app_name }}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
+  </table>
+  <!-- /Wrapper -->
+
+</body>
+</html>

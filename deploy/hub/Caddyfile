@@ -1,0 +1,84 @@
+# =============================================================================
+# HUB Caddyfile — Contabo Server Reverse Proxy
+# Auto-manages SSL via Let's Encrypt
+# =============================================================================
+
+# Redirect bare domain to www
+lifescienceaiagents.com {
+    redir https://www.lifescienceaiagents.com{uri} permanent
+}
+
+# ── n8n MASTER UI/Editor ───────────────────────────────────────────────────
+www.lifescienceaiagents.com {
+    tls manoharaya03@gmail.com
+
+    reverse_proxy n8n-master:5678 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    encode zstd gzip
+}
+
+# ── Django REST API ────────────────────────────────────────────────────────
+api.lifescienceaiagents.com {
+    tls manoharaya03@gmail.com
+
+    reverse_proxy django-api:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    encode zstd gzip
+}
+
+# ── Super Admin UI (Next.js — Hub-hosted) ──────────────────────────────────
+admin.lifescienceaiagents.com {
+    tls manoharaya03@gmail.com
+
+    reverse_proxy hub-frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+
+    encode zstd gzip
+}
+
+# ── n8n Webhook Endpoint (dedicated subdomain for webhooks) ────────────────
+webhook.lifescienceaiagents.com {
+    tls manoharaya03@gmail.com
+
+    reverse_proxy n8n-master:5678 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    encode zstd gzip
+}

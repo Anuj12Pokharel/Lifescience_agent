@@ -1,0 +1,238 @@
+# =============================================================================
+# HUB: CONTABO SERVER — Management Plane
+# Run this on: Contabo Server (lifescienceaiagents.com)
+# =============================================================================
+# Start: docker compose -f deploy/hub/docker-compose.yml up -d
+# =============================================================================
+
+services:
+
+  # ── REVERSE PROXY (Caddy — Auto SSL) ──────────────────────────────────────
+  caddy:
+    image: caddy:latest
+    container_name: hub-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - hub-net
+    depends_on:
+      - n8n-master
+      - django-api
+
+  # ── MAIN POSTGRESQL (Global State & Registry) ──────────────────────────────
+  postgres-hub:
+    image: postgres:16-alpine
+    container_name: hub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${HUB_DB_USER:-hub_user}
+      POSTGRES_PASSWORD: ${HUB_DB_PASSWORD:-hub_password}
+      POSTGRES_DB: app_db
+    volumes:
+      - postgres_hub_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      # Exposed on Tailscale interface for spoke workers
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HUB_DB_USER:-hub_user} -d app_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hub-net
+
+  # ── REDIS (Task Broker — n8n Queue + Celery) ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: hub-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-redis_secret_change_me}
+    volumes:
+      - redis_data:/data
+    ports:
+      # Exposed on Tailscale interface for n8n workers on spokes
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret_change_me}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - hub-net
+
+  # ── DJANGO API (Main Backend — Global Registry) ───────────────────────────
+  django-api:
+    build:
+      context: ../../Backend
+      target: runtime
+    image: hub-django:latest
+    container_name: hub-django
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres-hub
+      DB_PORT: "5432"
+      DB_NAME: app_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/2
+    volumes:
+      - static_files:/app/staticfiles
+      - media_files:/app/media
+    expose:
+      - "8000"
+    depends_on:
+      postgres-hub:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application
+             --bind 0.0.0.0:8000
+             --workers 4
+             --worker-class sync
+             --worker-tmp-dir /dev/shm
+             --timeout 60
+             --keep-alive 5
+             --log-level info
+             --access-logfile -
+             --error-logfile -"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - hub-net
+
+  # ── CELERY WORKER ─────────────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: ../../Backend
+      target: runtime
+    image: hub-django:latest
+    container_name: hub-celery-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres-hub
+      DB_PORT: "5432"
+      DB_NAME: app_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/2
+    volumes:
+      - media_files:/app/media
+    depends_on:
+      postgres-hub:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django-api:
+        condition: service_healthy
+    command: celery -A config.celery worker --loglevel=info --concurrency=4 -E -Q celery,default
+    networks:
+      - hub-net
+
+  # ── CELERY BEAT (Scheduler) ────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: ../../Backend
+      target: runtime
+    image: hub-django:latest
+    container_name: hub-celery-beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres-hub
+      DB_PORT: "5432"
+      DB_NAME: app_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-redis_secret_change_me}@redis:6379/2
+    depends_on:
+      postgres-hub:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      django-api:
+        condition: service_healthy
+    command: celery -A config.celery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    networks:
+      - hub-net
+
+  # ── n8n MASTER (Queue Mode — UI/Editor + Dispatcher) ─────────────────────
+  n8n-master:
+    image: n8nio/n8n:latest
+    container_name: hub-n8n-master
+    restart: unless-stopped
+    env_file:
+      - n8n-queue.env
+    environment:
+      # DB — connects to hub postgres
+      DB_POSTGRESDB_HOST: postgres-hub
+      DB_POSTGRESDB_USER: ${HUB_DB_USER:-hub_user}
+      DB_POSTGRESDB_PASSWORD: ${HUB_DB_PASSWORD:-hub_password}
+      # Redis queue
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret_change_me}
+    volumes:
+      - n8n_master_data:/home/node/.n8n
+    expose:
+      - "5678"
+    depends_on:
+      postgres-hub:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hub-net
+
+# ── NETWORKS ──────────────────────────────────────────────────────────────────
+networks:
+  hub-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ── VOLUMES ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_hub_data:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  static_files:
+    driver: local
+  media_files:
+    driver: local
+  n8n_master_data:
+    driver: local

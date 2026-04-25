@@ -1,0 +1,37 @@
+services:
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=www.lifescienceaiagents.com
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://www.lifescienceaiagents.com/
+      - N8N_EDITOR_BASE_URL=https://www.lifescienceaiagents.com
+      - N8N_ENCRYPTION_KEY=REPLACE_WITH_32CHAR_RANDOM_KEY
+      - GENERIC_TIMEZONE=Asia/Kathmandu
+      - N8N_LOG_LEVEL=info
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - caddy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  n8n_data:

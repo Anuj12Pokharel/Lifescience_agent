@@ -1,0 +1,21 @@
+# Redirect bare domain to www
+lifescienceaiagents.com {
+    redir https://www.lifescienceaiagents.com{uri} permanent
+}
+
+# Main site — Caddy auto-manages SSL via Let's Encrypt
+www.lifescienceaiagents.com {
+    reverse_proxy n8n:5678
+    tls manoharaya03@gmail.com
+}
+
+demo.lifescienceaiagents.com {
+    tls manoharaya03@gmail.com
+    reverse_proxy inputprocessor_app:8000
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+    encode gzip
+}
