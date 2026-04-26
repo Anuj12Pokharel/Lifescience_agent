@@ -23,6 +23,27 @@ services:
     depends_on:
       - n8n-master
       - django-api
+      - frontend
+
+  # ── CLIENT FRONTEND (Main UI — Containerized) ─────────────────────────────
+  # Moved from Mac Mini! Serves the user interface quickly from the cloud.
+  frontend:
+    build:
+      context: ../../Frontend
+      dockerfile: Dockerfile
+    image: hub-frontend:latest
+    container_name: hub-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Points to LOCAL Django API (via Caddy)
+      NEXT_PUBLIC_API_URL: https://api.lifescienceaiagents.com
+      # Points to LOCAL n8n (via Caddy)
+      NEXT_PUBLIC_N8N_WORKER_URL: https://n8n.lifescienceaiagents.com
+    expose:
+      - "3000"
+    networks:
+      - hub-net
 
   # ── MAIN POSTGRESQL (Global State & Registry) ──────────────────────────────
   postgres-hub:
@@ -85,6 +106,7 @@ services:
       - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
+      # DB connects to local Hub Postgres
       DB_HOST: postgres-hub
       DB_PORT: "5432"
       DB_NAME: app_db
@@ -135,6 +157,7 @@ services:
       - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
+      # DB connects to local Hub Postgres
       DB_HOST: postgres-hub
       DB_PORT: "5432"
       DB_NAME: app_db
@@ -166,6 +189,7 @@ services:
       - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
+      # DB connects to local Hub Postgres
       DB_HOST: postgres-hub
       DB_PORT: "5432"
       DB_NAME: app_db
@@ -191,7 +215,7 @@ services:
     env_file:
       - n8n-queue.env
     environment:
-      # DB — connects to hub postgres
+      # DB connects to local Hub Postgres
       DB_POSTGRESDB_HOST: postgres-hub
       DB_POSTGRESDB_USER: ${HUB_DB_USER:-hub_user}
       DB_POSTGRESDB_PASSWORD: ${HUB_DB_PASSWORD:-hub_password}
@@ -234,3 +258,4 @@ volumes:
     driver: local
   n8n_master_data:
     driver: local
+

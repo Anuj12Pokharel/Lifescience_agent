@@ -41,9 +41,9 @@
         }
     }
 
-    # ── Super Admin UI ─────────────────────────────────────────────────────────
-    @admin host admin.lifescienceaiagents.com
-    handle @admin {
+    # ── Frontend (Admin & Superadmin) ─────────────────────────────────────────
+    @frontend host ai.lifescienceaiagents.com
+    handle @frontend {
         reverse_proxy hub-frontend:3000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
