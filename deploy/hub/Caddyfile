@@ -9,7 +9,7 @@
 
 :80 {
     # ── Django REST API ────────────────────────────────────────────────────────
-    @api host api.lifescienceaiagents.com
+    @api host backend.lifescienceaiagents.com
     handle @api {
         reverse_proxy django-api:8000 {
             header_up Host {host}

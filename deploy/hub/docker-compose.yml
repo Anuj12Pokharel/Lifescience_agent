@@ -37,7 +37,7 @@ services:
     environment:
       NODE_ENV: production
       # Points to LOCAL Django API (via Caddy)
-      NEXT_PUBLIC_API_URL: https://api.lifescienceaiagents.com
+      NEXT_PUBLIC_API_URL: https://backend.lifescienceaiagents.com
       # Points to LOCAL n8n (via Caddy)
       NEXT_PUBLIC_N8N_WORKER_URL: https://n8n.lifescienceaiagents.com
     expose:
