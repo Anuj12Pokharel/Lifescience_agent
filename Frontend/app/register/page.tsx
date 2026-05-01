@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, Lock, Mail, Building2, CheckCircle, XCircle } from 'lucide-react';
-import { useRegister, useRegisterAdmin } from '@/lib/hooks/use-auth';
+import { useRegisterAdmin } from '@/lib/hooks/use-auth';
 
 function validatePassword(pwd: string) {
   return {
@@ -24,21 +24,16 @@ const PASSWORD_RULES = [
 ] as const;
 
 export default function RegisterPage() {
-  const [mode, setMode] = useState<'user' | 'admin'>('user');
-  const register = useRegister();
   const registerAdmin = useRegisterAdmin();
 
   const [form, setForm] = useState({ email: '', password: '', password_confirm: '', organization_name: '' });
   const [showPassword, setShowPassword] = useState(false);
 
-  const mutation = mode === 'admin' ? registerAdmin : register;
-
   const rules = validatePassword(form.password);
   const allValid = Object.values(rules).every(Boolean);
   const passwordsMatch = form.password === form.password_confirm && form.password_confirm !== '';
-  const orgValid = mode === 'user' || form.organization_name.trim().length > 0;
 
-  const errorData = (mutation.error as {
+  const errorData = (registerAdmin.error as {
     response?: { data?: { error?: { message?: string; details?: Record<string, string[]> } } };
   })?.response?.data?.error;
 
@@ -47,24 +42,16 @@ export default function RegisterPage() {
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!allValid || !passwordsMatch || !orgValid) return;
-    if (mode === 'admin') {
-      registerAdmin.mutate({
-        email: form.email,
-        password: form.password,
-        password_confirm: form.password_confirm,
-        organization_name: form.organization_name,
-      });
-    } else {
-      register.mutate({
-        email: form.email,
-        password: form.password,
-        password_confirm: form.password_confirm,
-      });
-    }
+    if (!allValid || !passwordsMatch || !form.organization_name.trim()) return;
+    registerAdmin.mutate({
+      email: form.email,
+      password: form.password,
+      password_confirm: form.password_confirm,
+      organization_name: form.organization_name,
+    });
   };
 
-  if (mutation.isSuccess) {
+  if (registerAdmin.isSuccess) {
     return (
       <div className="auth-page">
         <style>{AUTH_STYLES}</style>
@@ -88,25 +75,12 @@ export default function RegisterPage() {
           <div className="logo-header-title">Life Science AI</div>
         </div>
 
-        <h1 className="auth-title">Create account</h1>
-        <p className="auth-subtitle">Join the platform today</p>
+        <h1 className="auth-title">Create Admin Account</h1>
+        <p className="auth-subtitle">Register your organization on the platform</p>
 
-        {/* Mode Toggle */}
-        <div className="mode-toggle">
-          <button
-            type="button"
-            className={`mode-btn ${mode === 'user' ? 'mode-btn-active' : ''}`}
-            onClick={() => setMode('user')}
-          >
-            Sign up as User
-          </button>
-          <button
-            type="button"
-            className={`mode-btn ${mode === 'admin' ? 'mode-btn-active' : ''}`}
-            onClick={() => setMode('admin')}
-          >
-            Sign up as Admin
-          </button>
+        <div className="invite-notice">
+          <span className="invite-notice-icon">🔒</span>
+          <span>Users join by invitation only. Admins register here.</span>
         </div>
 
         {globalError && <div className="error-box">{globalError}</div>}
@@ -122,23 +96,21 @@ export default function RegisterPage() {
             {fieldErrors.email?.map((err, i) => <p key={i} className="field-error">{err}</p>)}
           </div>
 
-          {mode === 'admin' && (
-            <div className="form-group">
-              <label className="form-label">Organization Name</label>
-              <div className="input-wrapper">
-                <span className="input-icon"><Building2 size={16} /></span>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Acme Corp"
-                  value={form.organization_name}
-                  onChange={(e) => setForm({ ...form, organization_name: e.target.value })}
-                  required
-                />
-              </div>
-              {fieldErrors.organization_name?.map((err, i) => <p key={i} className="field-error">{err}</p>)}
+          <div className="form-group">
+            <label className="form-label">Organization Name</label>
+            <div className="input-wrapper">
+              <span className="input-icon"><Building2 size={16} /></span>
+              <input
+                className="form-input"
+                type="text"
+                placeholder="Acme Corp"
+                value={form.organization_name}
+                onChange={(e) => setForm({ ...form, organization_name: e.target.value })}
+                required
+              />
             </div>
-          )}
+            {fieldErrors.organization_name?.map((err, i) => <p key={i} className="field-error">{err}</p>)}
+          </div>
 
           <div className="form-group">
             <label className="form-label">Password</label>
@@ -178,8 +150,9 @@ export default function RegisterPage() {
             {form.password_confirm && !passwordsMatch && <p className="field-error">Passwords do not match</p>}
           </div>
 
-          <button type="submit" className="submit-btn" disabled={mutation.isPending || !allValid || !passwordsMatch || !orgValid}>
-            {mutation.isPending ? 'Creating account...' : mode === 'admin' ? 'Create Admin Account' : 'Create Account'}
+          <button type="submit" className="submit-btn"
+            disabled={registerAdmin.isPending || !allValid || !passwordsMatch || !form.organization_name.trim()}>
+            {registerAdmin.isPending ? 'Creating account...' : 'Create Admin Account'}
           </button>
         </form>
 
@@ -196,10 +169,9 @@ const AUTH_STYLES = `
   .auth-page { min-height: 100vh; background: #020B18; display: flex; align-items: center; justify-content: center; padding: 24px; font-family: 'Inter', sans-serif; }
   .auth-card { width: 100%; max-width: 440px; background: rgba(0,15,40,0.9); border: 1px solid rgba(0,100,200,0.25); border-radius: 20px; padding: 40px; backdrop-filter: blur(20px); box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   .auth-title { font-size: 26px; font-weight: 800; color: #E8F4FF; margin-bottom: 4px; letter-spacing: -0.03em; }
-  .auth-subtitle { font-size: 14px; color: rgba(120,170,220,0.6); margin-bottom: 24px; }
-  .mode-toggle { display: flex; gap: 8px; margin-bottom: 24px; background: rgba(0,20,50,0.6); border: 1px solid rgba(0,100,180,0.2); border-radius: 10px; padding: 4px; }
-  .mode-btn { flex: 1; padding: 9px 12px; background: transparent; border: none; border-radius: 7px; font-size: 13px; font-weight: 600; color: rgba(120,170,220,0.6); cursor: pointer; transition: all 0.2s; }
-  .mode-btn-active { background: rgba(0,150,255,0.2); color: #00D4FF; border: 1px solid rgba(0,212,255,0.3); }
+  .auth-subtitle { font-size: 14px; color: rgba(120,170,220,0.6); margin-bottom: 20px; }
+  .invite-notice { display: flex; align-items: center; gap: 8px; background: rgba(0,100,255,0.06); border: 1px solid rgba(0,150,255,0.18); border-radius: 9px; padding: 10px 14px; font-size: 13px; color: rgba(120,180,240,0.75); margin-bottom: 22px; }
+  .invite-notice-icon { font-size: 15px; flex-shrink: 0; }
   .form-group { margin-bottom: 20px; }
   .form-label { display: block; font-size: 13px; font-weight: 600; color: rgba(160,200,240,0.8); margin-bottom: 8px; }
   .input-wrapper { position: relative; }

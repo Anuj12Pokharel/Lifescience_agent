@@ -8,7 +8,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.accounts.models import CustomUser, UserProfile
+from apps.accounts.models import CustomUser, InviteToken, OTPCode, UserProfile
 
 
 # ── Token generators ─────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ def _get_client_ip(request) -> str | None:
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ["avatar", "bio", "phone", "timezone", "updated_at"]
+        fields = ["first_name", "last_name", "avatar", "bio", "phone", "timezone", "updated_at"]
         read_only_fields = ["updated_at"]
 
 
@@ -646,4 +646,150 @@ class AssignCompanySerializer(serializers.Serializer):
         user: CustomUser = self.context["target_user"]
         user.company = self.validated_data["company_id"]  # Company instance or None
         user.save(update_fields=["company"])
+        return user
+
+
+# ── Invite-link flow serializers ──────────────────────────────────────────────
+
+class SendInviteSerializer(serializers.Serializer):
+    """
+    Admin sends an invite to an email address only — no password required.
+    Superadmin can optionally specify which admin will manage the invited user.
+    """
+    email = serializers.EmailField(max_length=254)
+    managed_by_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Superadmin only: assign to a specific admin.",
+    )
+
+    def validate_email(self, value: str) -> str:
+        value = value.lower().strip()
+        if CustomUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists."
+            )
+        return value
+
+    def validate(self, attrs: dict) -> dict:
+        requester: CustomUser = self.context["request"].user
+        managed_by_id = attrs.get("managed_by_id")
+
+        if managed_by_id:
+            if not requester.is_superadmin:
+                raise serializers.ValidationError(
+                    {"managed_by_id": "Only superadmins can assign a different manager."}
+                )
+            try:
+                manager = CustomUser.objects.get(
+                    pk=managed_by_id, role=CustomUser.Role.ADMIN, is_active=True
+                )
+            except CustomUser.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"managed_by_id": "No active admin found with this ID."}
+                )
+            attrs["_manager"] = manager
+        else:
+            attrs["_manager"] = requester if requester.is_admin else None
+
+        return attrs
+
+
+class CompleteInviteSerializer(serializers.Serializer):
+    """
+    Submitted by the invited user to complete their account setup.
+    """
+    token = serializers.UUIDField()
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate_password(self, value: str) -> str:
+        return validate_password_strength(value)
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs["password"] != attrs["password_confirm"]:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+
+        try:
+            invite = InviteToken.objects.select_related("invited_by", "managed_by").get(
+                token=attrs["token"]
+            )
+        except InviteToken.DoesNotExist:
+            raise serializers.ValidationError({"token": "Invalid invite link."})
+
+        if invite.is_used:
+            raise serializers.ValidationError({"token": "This invite link has already been used."})
+        if invite.is_expired:
+            raise serializers.ValidationError({"token": "This invite link has expired."})
+
+        attrs["_invite"] = invite
+        return attrs
+
+    def save(self) -> CustomUser:
+        invite: InviteToken = self.validated_data["_invite"]
+
+        is_admin_invite = invite.invited_role == CustomUser.Role.ADMIN
+        user = CustomUser.objects.create_user(
+            email=invite.email,
+            password=self.validated_data["password"],
+            role=invite.invited_role,
+            managed_by=invite.managed_by,
+            is_staff=is_admin_invite,
+            is_verified=False,
+            is_active=True,
+        )
+        UserProfile.objects.create(
+            user=user,
+            first_name=self.validated_data["first_name"],
+            last_name=self.validated_data["last_name"],
+            phone=self.validated_data.get("phone", ""),
+        )
+
+        invite.is_used = True
+        invite.save(update_fields=["is_used"])
+        return user
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    """Verifies the 6-digit OTP sent after invite signup completion."""
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(max_length=6, min_length=6)
+
+    def validate(self, attrs: dict) -> dict:
+        email = attrs["email"].lower().strip()
+        try:
+            user = CustomUser.objects.get(email=email, is_active=True)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError({"email": "No account found with this email."})
+
+        if user.is_verified:
+            raise serializers.ValidationError({"email": "This account is already verified."})
+
+        otp = (
+            OTPCode.objects
+            .filter(user=user, is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+        if otp is None:
+            raise serializers.ValidationError({"otp_code": "No OTP found. Please request a new one."})
+        if otp.is_expired:
+            raise serializers.ValidationError({"otp_code": "OTP has expired. Please request a new one."})
+        if otp.code != attrs["otp_code"]:
+            raise serializers.ValidationError({"otp_code": "Incorrect OTP code."})
+
+        attrs["_user"] = user
+        attrs["_otp"] = otp
+        return attrs
+
+    def save(self) -> CustomUser:
+        user: CustomUser = self.validated_data["_user"]
+        otp: OTPCode = self.validated_data["_otp"]
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
         return user

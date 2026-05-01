@@ -85,13 +85,36 @@ export interface LoginResponse {
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: async (data: { email: string; password: string; password_confirm: string }) => {
-    const res = await api.post('/api/v1/auth/register/', data);
+  registerAdmin: async (data: { email: string; password: string; password_confirm: string; organization_name: string }) => {
+    const res = await api.post('/api/v1/auth/register/admin/', data);
     return res.data;
   },
 
-  registerAdmin: async (data: { email: string; password: string; password_confirm: string; organization_name: string }) => {
-    const res = await api.post('/api/v1/auth/register/admin/', data);
+  // ── Invite-link flow ───────────────────────────────────────────────────────
+  validateInviteToken: async (token: string): Promise<{ email: string; invited_by: string; expires_at: string }> => {
+    const res = await api.get(`/api/v1/auth/invite/validate/?token=${token}`);
+    return res.data?.data ?? res.data;
+  },
+
+  completeInvite: async (data: {
+    token: string;
+    first_name: string;
+    last_name: string;
+    phone?: string;
+    password: string;
+    password_confirm: string;
+  }) => {
+    const res = await api.post('/api/v1/auth/invite/complete/', data);
+    return res.data;
+  },
+
+  verifyOTP: async (data: { email: string; otp_code: string }) => {
+    const res = await api.post('/api/v1/auth/verify-otp/', data);
+    return res.data;
+  },
+
+  resendOTP: async (data: { email: string }) => {
+    const res = await api.post('/api/v1/auth/resend-otp/', data);
     return res.data;
   },
 
@@ -237,7 +260,7 @@ export const usersApi = {
     return res.data;
   },
 
-  invite: async (data: { email: string; password?: string; password_confirm?: string; managed_by_id?: string }) => {
+  invite: async (data: { email: string; managed_by_id?: string | null }) => {
     const res = await api.post('/api/v1/users/invite/', data);
     return res.data;
   },
