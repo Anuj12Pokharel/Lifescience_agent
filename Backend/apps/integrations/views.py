@@ -162,6 +162,48 @@ class IntegrationProviderListView(APIView):
         return _ok(AgentIntegrationProviderSerializer(qs, many=True).data)
 
 
+# ── Category-conflict guard ───────────────────────────────────────────────────
+
+def _provider_category(slug: str) -> str | None:
+    """Return 'crm' or 'messenger' if slug belongs to that category, else None."""
+    from apps.agents.execution import _CRM_PROVIDERS, _MESSENGER_PROVIDERS
+    slug = slug.lower()
+    if slug in _CRM_PROVIDERS:
+        return "crm"
+    if slug in _MESSENGER_PROVIDERS:
+        return "messenger"
+    return None
+
+
+def _check_category_conflict(org, new_provider) -> str | None:
+    """
+    Return an error message if the org already has an active credential for a
+    *different* provider in the same category (crm / messenger) for this agent.
+    Returns None when it's safe to connect.
+    """
+    category = _provider_category(new_provider.provider)
+    if not category:
+        return None  # trackers have no limit enforced here
+
+    from apps.agents.execution import _CRM_PROVIDERS, _MESSENGER_PROVIDERS
+    category_slugs = _CRM_PROVIDERS if category == "crm" else _MESSENGER_PROVIDERS
+
+    existing = OrgIntegrationCredential.objects.filter(
+        org=org,
+        provider__agent=new_provider.agent,
+        is_active=True,
+        provider__provider__in=category_slugs,
+    ).exclude(provider=new_provider).select_related("provider").first()
+
+    if existing:
+        return (
+            f"Your organization already has {existing.provider.display_name} connected "
+            f"as a {category} tool for this agent. "
+            f"Disconnect it first before connecting {new_provider.display_name}."
+        )
+    return None
+
+
 # ── OAuth 2.0 flow ────────────────────────────────────────────────────────────
 
 class OAuthInitiateView(APIView):
@@ -194,6 +236,10 @@ class OAuthInitiateView(APIView):
                 {"detail": "This agent is not enabled for your organization."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        conflict = _check_category_conflict(org, provider)
+        if conflict:
+            return Response({"detail": conflict}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             auth_url = build_auth_url(provider, str(org.id), str(request.user.id))
@@ -267,6 +313,9 @@ class ApiKeyConnectView(APIView):
         s = ApiKeyConnectSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         org = request.user.owned_organization
+        conflict = _check_category_conflict(org, s.validated_data["_provider"])
+        if conflict:
+            return Response({"detail": conflict}, status=status.HTTP_400_BAD_REQUEST)
         credential = s.save(org=org, connected_by=request.user)
         return _ok(
             OrgCredentialSerializer(credential).data,

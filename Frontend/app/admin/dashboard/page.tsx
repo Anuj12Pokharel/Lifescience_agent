@@ -1,42 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard-layout';
 import { Users, Bot, Shield, Activity, UsersRound, ArrowRight, Building, Calendar } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
+import { useQuery } from '@tanstack/react-query';
+import { organizationsApi } from '@/lib/api-client';
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({ users: 0, agents: 0, groups: 0 });
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [usersRes, agentsRes, groupsRes] = await Promise.all([
-          api.get('/api/v1/users/?page_size=1'),
-          api.get('/api/v1/agents/?page_size=1'),
-          api.get('/api/v1/groups/?page_size=1'),
-        ]);
-        setStats({
-          users: usersRes.data?.pagination?.count || usersRes.data?.count || 0,
-          agents: agentsRes.data?.pagination?.count || agentsRes.data?.count || 0,
-          groups: groupsRes.data?.pagination?.count || groupsRes.data?.count || 0,
-        });
-      } catch {
-        // silently ignore error on dashboard summary
-      }
-    };
-    fetchStats();
-  }, []);
+  const { data: stats } = useQuery({
+    queryKey: ['org', 'stats'],
+    queryFn: organizationsApi.getMyOrgStats,
+  });
 
   const metricCards = [
-    { label: 'Total Users', value: stats.users, icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/20', border: 'border-cyan-500/30', href: '/admin/users' },
-    { label: 'Total Agents', value: stats.agents, icon: Bot, color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30', href: '/admin/agents' },
-    { label: 'Work Groups', value: stats.groups, icon: UsersRound, color: 'text-purple-400', bg: 'bg-purple-500/20', border: 'border-purple-500/30', href: '/admin/groups' },
-    { label: 'System Status', value: 'Healthy', icon: Activity, color: 'text-emerald-400', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30', href: null },
+    { label: 'Members',           value: stats?.member_count,           icon: Users,     color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   href: '/admin/users'  },
+    { label: 'Subscribed Agents', value: stats?.subscribed_agent_count, icon: Bot,       color: 'text-blue-400',   bg: 'bg-blue-500/20',   href: '/admin/organization' },
+    { label: 'Groups',            value: stats?.group_count,            icon: UsersRound,color: 'text-purple-400', bg: 'bg-purple-500/20', href: '/admin/groups' },
+    { label: 'System Status',     value: 'Healthy',                     icon: Activity,  color: 'text-emerald-400',bg: 'bg-emerald-500/20',href: null            },
   ];
 
   return (
@@ -62,7 +46,7 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className={`text-4xl font-black tracking-tight ${color} drop-shadow-sm mb-2`}>
-                    {value === 0 && label !== 'System Status' ? '...' : value}
+                    {value === undefined ? <span className="opacity-30">—</span> : value}
                   </div>
                   <p className="text-sm font-semibold text-slate-300">{label}</p>
                 </CardContent>

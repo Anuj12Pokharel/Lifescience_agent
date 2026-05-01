@@ -369,14 +369,14 @@ function AddMembersModal({ groupId, existingUserIds, open, onOpenChange }: {
   groupId: string; existingUserIds: string[]; open: boolean; onOpenChange: (open: boolean) => void;
 }) {
   const [search, setSearch] = useState('');
+  const [submittedSearch, setSubmittedSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const addMembers = useAddGroupMembers(groupId);
 
-  // Fetch all users once — filter client-side so typing is instant
-  const { data, isLoading } = useUsers({ page_size: 200 });
-  const users = (data?.results ?? [])
-    .filter(u => !existingUserIds.includes(u.id))
-    .filter(u => !search || u.email.toLowerCase().includes(search.toLowerCase()));
+  const { data, isLoading } = useUsers(submittedSearch ? { search: submittedSearch } : {});
+  const users = submittedSearch
+    ? (data?.results ?? []).filter(u => !existingUserIds.includes(u.id))
+    : [];
 
   const toggleUser = (id: string) => {
     const next = new Set(selected);
@@ -385,30 +385,36 @@ function AddMembersModal({ groupId, existingUserIds, open, onOpenChange }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!addMembers.isPending) { onOpenChange(o); if (!o) { setSearch(''); setSelected(new Set()); } } }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!addMembers.isPending) { onOpenChange(o); if (!o) { setSearch(''); setSubmittedSearch(''); setSelected(new Set()); } } }}>
       <DialogContent className="sm:max-w-[600px] bg-[#0A1428] border-border/40 text-foreground">
         <DialogHeader>
           <DialogTitle>Add Members</DialogTitle>
           <DialogDescription>Search and select users to add to this group.</DialogDescription>
         </DialogHeader>
-        <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-muted/40 border-border/40"
-            autoFocus
-          />
+        <div className="flex gap-2 mb-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Enter full email address..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setSubmittedSearch(search); setSelected(new Set()); } }}
+              className="pl-9 bg-muted/40 border-border/40"
+              autoFocus
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => { setSubmittedSearch(search); setSelected(new Set()); }} className="shrink-0">Search</Button>
         </div>
         <div className="max-h-[300px] overflow-y-auto border border-border/20 rounded-lg bg-card/20 p-1">
-          {isLoading ? (
+          {isLoading && submittedSearch ? (
             <div className="p-8 flex justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+          ) : !submittedSearch ? (
+            <div className="p-8 text-center text-muted-foreground font-medium text-sm">Enter an email address and press Search</div>
           ) : users.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground font-medium text-sm">
-              {search ? `No users matching "${search}"` : 'No new users available'}
+              {`No users matching "${submittedSearch}"`}
             </div>
           ) : (
             users.map(u => (

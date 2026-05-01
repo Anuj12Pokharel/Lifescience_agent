@@ -181,13 +181,6 @@ BACKEND_URL = config("BACKEND_URL", default="http://localhost:8000")
 # If not set, derived from SECRET_KEY automatically (see apps/integrations/encryption.py)
 FERNET_KEY = config("FERNET_KEY", default="")
 
-# ── Internal API Token (Hub ↔ Spoke authentication) ───────────────────────────
-# Shared secret between hub Django and edge spoke nodes.
-# Spokes use: Authorization: InternalToken <value>
-# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
-INTERNAL_API_TOKEN = config("INTERNAL_API_TOKEN", default="")
-
-
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
 CORS_ALLOWED_ORIGINS = config(
@@ -245,8 +238,8 @@ REST_FRAMEWORK = {
 # ── SimpleJWT ─────────────────────────────────────────────────────────────────
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,

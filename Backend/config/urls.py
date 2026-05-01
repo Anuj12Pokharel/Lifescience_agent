@@ -30,7 +30,6 @@ urlpatterns = [
     path("api/v1/groups/", include("apps.agents.group_urls", namespace="groups")),
     path("api/v1/company/", include("apps.company.urls", namespace="company")),
     path("api/v1/organizations/", include("apps.organizations.urls", namespace="organizations")),
-    path("api/v1/integrations/", include("apps.integrations.urls", namespace="integrations")),
 
     # ── Internal: n8n → Django callbacks (token-authenticated, no JWT) ────────
     path("internal/companies/all", InternalCompaniesAllView.as_view(), name="internal-companies-all"),
@@ -41,12 +40,8 @@ urlpatterns = [
     path("internal/reminders/", InternalReminderView.as_view(), name="internal-reminder-list"),
     path("internal/reminders/due/", InternalReminderView.as_view(), name="internal-reminder-due"),
     path("internal/reminders/<uuid:reminder_id>/sent/", InternalReminderView.as_view(), name="internal-reminder-sent"),
-
-    # ── Internal: Spoke Node Registration (Hub-and-Spoke architecture) ────────
-    # Called by Mac Mini edge nodes to self-register, send heartbeats, fetch config
-    path("internal/spokes/", include("apps.organizations.spoke_urls")),
+    path("api/v1/integrations/", include("apps.integrations.urls", namespace="integrations")),
 ]
-
 
 # ── Serve media files in development ─────────────────────────────────────────
 if settings.DEBUG:

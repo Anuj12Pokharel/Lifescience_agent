@@ -216,11 +216,12 @@ class GroupAgentView(APIView):
         serializer = AddGroupAgentsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Admin: can assign any active agent (role grants full access).
-        # Just verify all requested agent IDs actually exist and are active.
+        # Admin: can only assign agents their org has an active subscription to.
         if request.user.is_admin:
             from apps.agents.models import Agent
+            from apps.organizations.models import OrgAgentAccess
             agent_ids = serializer.validated_data.get("agent_ids", [])
+
             existing_ids = set(
                 Agent.objects.filter(
                     id__in=agent_ids, is_active=True
@@ -230,6 +231,23 @@ class GroupAgentView(APIView):
             if not_found:
                 raise PermissionDenied(
                     f"These agents do not exist or are inactive: {', '.join(not_found)}"
+                )
+
+            try:
+                org = request.user.owned_organization
+                subscribed_ids = set(
+                    OrgAgentAccess.objects.filter(
+                        org=org, is_enabled=True
+                    ).values_list("agent_id", flat=True)
+                )
+            except Exception:
+                subscribed_ids = set()
+
+            not_subscribed = [str(aid) for aid in agent_ids if aid not in subscribed_ids]
+            if not_subscribed:
+                raise PermissionDenied(
+                    "Your organization is not subscribed to these agents. "
+                    "Subscribe first before assigning to a group."
                 )
 
         result = serializer.save(group=group, granted_by=request.user)
@@ -277,13 +295,27 @@ class MyGroupsView(APIView):
         memberships = (
             AgentGroupMembership.objects
             .filter(user=request.user, is_active=True, group__is_active=True)
-            .select_related("group")
+            .select_related("group__created_by")
             .prefetch_related("group__agent_accesses__agent")
         )
 
         result = []
         for membership in memberships:
             group = membership.group
+
+            # Only show agents the group creator's org is still subscribed to
+            subscribed_ids = set()
+            try:
+                from apps.organizations.models import OrgAgentAccess
+                org = group.created_by.owned_organization
+                subscribed_ids = set(
+                    OrgAgentAccess.objects.filter(
+                        org=org, is_enabled=True
+                    ).values_list("agent_id", flat=True)
+                )
+            except Exception:
+                pass
+
             agents = [
                 {
                     "agent_id": str(ga.agent.id),
@@ -298,6 +330,7 @@ class MyGroupsView(APIView):
                     "agent_is_active": ga.agent.is_active,
                 }
                 for ga in group.agent_accesses.filter(is_active=True, agent__is_active=True)
+                if ga.agent.id in subscribed_ids
             ]
             result.append({
                 "group_id": str(group.id),

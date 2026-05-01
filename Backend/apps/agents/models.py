@@ -44,6 +44,10 @@ class Agent(models.Model):
         default=100,
         help_text="Efficiency percentage (0–100)"
     )
+    system_prompt = models.TextField(
+        blank=True,
+        help_text="Instructions for the AI brain — defines agent personality, scope, and behavior.",
+    )
     config = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
