@@ -54,11 +54,14 @@ export default function AdminOrganizationPage() {
 
   return (
     <DashboardLayout requireAdmin>
-      <div className="flex flex-col gap-8 max-w-5xl mx-auto">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">My Organization</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your organization, members, and agent access grants.</p>
+      <div className="flex flex-col gap-10 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">My <span className="text-cyan-400">Organization</span></h1>
+            <p className="text-sm text-slate-400 mt-1">Manage organizational details, team members, and shared agent access.</p>
+          </div>
         </div>
+
 
         <Tabs defaultValue="overview">
           <TabsList className="bg-muted/30 border border-border/40">
@@ -164,49 +167,67 @@ export default function AdminOrganizationPage() {
                 </Card>
 
                 {/* Gmail Integration Card */}
-                <Card className="bg-card/20 border-border/40 backdrop-blur-sm md:col-span-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Mail className="h-4 w-4" /> Invitation Sender (Gmail OAuth)
+                <Card className="bg-slate-900/40 backdrop-blur-md border border-white/5 md:col-span-2 overflow-hidden rounded-2xl group transition-all duration-300 hover:border-cyan-500/20">
+                  <div className="absolute top-0 right-0 p-12 opacity-[0.03] transition-transform duration-700 group-hover:scale-150 group-hover:rotate-12 pointer-events-none">
+                    <Mail className="h-40 w-40 text-cyan-400" />
+                  </div>
+                  <CardHeader className="pb-3 border-b border-white/5 bg-white/[0.02]">
+                    <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-cyan-400" /> Invitation Engine
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="space-y-1 max-w-xl">
-                        <p className="text-sm text-foreground font-medium">
-                          Connect your company Gmail account to send member invitations from your own email address.
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                      <div className="space-y-3 max-w-xl">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-white">Gmail OAuth <span className="text-cyan-400">Integration</span></h3>
+                          {!gmailLoading && gmailStatus?.connected && (
+                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-2 py-0 h-5 text-[10px] font-black tracking-widest uppercase">Connected</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-300 font-medium">
+                          Authorize your company Gmail account to send professional invitation emails directly from your own domain.
                         </p>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          By default, invitations are sent via our system SMTP. Connecting your Gmail provides a more professional experience for your team members.
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Standard invitations are sent from our system account. Connecting your own Gmail ensures better deliverability and a consistent brand experience for new team members.
                         </p>
                       </div>
 
                       <div className="shrink-0">
                         {gmailLoading ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <div className="flex items-center gap-3 text-slate-500">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span className="text-xs font-bold uppercase tracking-widest">Checking status...</span>
+                          </div>
                         ) : gmailStatus?.connected ? (
-                          <div className="flex items-center gap-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-bold text-emerald-500/70 tracking-tight">Connected as</span>
-                              <span className="text-sm font-semibold text-foreground">{gmailStatus.gmail_email}</span>
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-4 pr-10 relative">
+                              <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                <Check className="h-5 w-5 text-emerald-400" />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Authorized Email</span>
+                                <span className="text-sm font-black text-white">{gmailStatus.gmail_email}</span>
+                              </div>
                             </div>
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-8"
+                              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-10 w-full rounded-xl font-bold border border-transparent hover:border-rose-500/20 transition-all"
                               onClick={() => disconnectGmail.mutate()}
                               disabled={disconnectGmail.isPending}
                             >
-                              {disconnectGmail.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Disconnect'}
+                              {disconnectGmail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                              Disconnect Account
                             </Button>
                           </div>
                         ) : (
                           <Button 
-                            className="bg-white text-black hover:bg-white/90 font-bold"
+                            className="bg-white text-black hover:bg-white/90 font-black h-12 px-8 rounded-xl shadow-lg shadow-white/10 transition-all active:scale-95"
                             onClick={() => connectGmail.mutate()}
                             disabled={connectGmail.isPending}
                           >
-                            {connectGmail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
+                            {connectGmail.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Mail className="h-5 w-5 mr-3" />}
                             Connect Company Gmail
                           </Button>
                         )}
@@ -214,6 +235,7 @@ export default function AdminOrganizationPage() {
                     </div>
                   </CardContent>
                 </Card>
+
               </div>
             )}
           </TabsContent>
