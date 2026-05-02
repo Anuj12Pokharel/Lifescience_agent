@@ -837,6 +837,23 @@ export const integrationsApi = {
     await api.patch('/api/v1/integrations/messenger-config/', data);
   },
 
+  // ─── Gmail OAuth ───────────────────────────────────────────────────────────
+
+  getGmailOAuthUrl: async (): Promise<{ auth_url: string }> => {
+    const res = await api.get('/api/v1/integrations/gmail/connect/');
+    return res.data?.data ?? res.data;
+  },
+
+  getGmailStatus: async (): Promise<{ connected: boolean; gmail_email: string | null }> => {
+    const res = await api.get('/api/v1/integrations/gmail/status/');
+    return res.data?.data ?? res.data;
+  },
+
+  disconnectGmail: async (): Promise<void> => {
+    await api.delete('/api/v1/integrations/gmail/disconnect/');
+  },
+
+
   // ─── Superadmin: manage providers ──────────────────────────────────────────
 
   createAdminProvider: async (data: {

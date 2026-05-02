@@ -118,3 +118,35 @@ export function useUpdateMessengerConfig() {
     },
   });
 }
+
+// ─── Gmail OAuth ─────────────────────────────────────────────────────────────
+
+export function useGmailStatus() {
+  return useQuery({
+    queryKey: ['integrations', 'gmail', 'status'],
+    queryFn: integrationsApi.getGmailStatus,
+  });
+}
+
+export function useConnectGmail() {
+  return useMutation({
+    mutationFn: integrationsApi.getGmailOAuthUrl,
+    onSuccess: (data) => {
+      window.open(data.auth_url, '_self');
+    },
+    onError: () => toast.error('Failed to initiate Gmail connection'),
+  });
+}
+
+export function useDisconnectGmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: integrationsApi.disconnectGmail,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations', 'gmail', 'status'] });
+      toast.success('Gmail disconnected');
+    },
+    onError: () => toast.error('Failed to disconnect Gmail'),
+  });
+}
+

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInviteUser, useUsers } from '@/lib/hooks/use-users';
+import { useGmailStatus } from '@/lib/hooks/use-integrations';
 import { Loader2, UserPlus, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface InviteUserDialogProps {
@@ -21,6 +22,7 @@ export function InviteUserDialog({ open, onOpenChange, isAdmin }: InviteUserDial
   const invite = useInviteUser();
   const { data: adminList } = useUsers({ role: 'admin' });
   const admins = adminList?.results ?? [];
+  const { data: gmailStatus } = useGmailStatus();
 
   const [email, setEmail]           = useState('');
   const [managedById, setManagedById] = useState('');
@@ -159,7 +161,14 @@ export function InviteUserDialog({ open, onOpenChange, isAdmin }: InviteUserDial
                 <li>Verify via a 6-digit OTP code</li>
                 <li>Sign in to access their agents</li>
               </ol>
+              {gmailStatus?.connected && (
+                <div className="pt-1 mt-1 border-t border-border/20 text-[10px] text-emerald-400/80 flex items-center gap-1.5 font-medium">
+                  <Mail className="h-3 w-3" />
+                  Invitation will be sent via {gmailStatus.gmail_email}
+                </div>
+              )}
             </div>
+
 
             <DialogFooter className="pt-2">
               <Button type="button" variant="ghost" onClick={handleClose}

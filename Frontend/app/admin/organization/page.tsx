@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Users, Bot, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Building2, Users, Bot, Plus, Trash2, Edit2, Check, X, Mail } from 'lucide-react';
 import DashboardLayout from '@/components/dashboard-layout';
 import { useMyOrg, useUpdateMyOrg, useOrgMembers, useAgentPermissions, useGrantAgentPermission, useRevokeAgentPermission, useOrgAgents, useSubscribeAgent, useUnsubscribeAgent } from '@/lib/hooks/use-organizations';
+import { useGmailStatus, useConnectGmail, useDisconnectGmail } from '@/lib/hooks/use-integrations';
 import { organizationsApi, type OrgMember, type AgentPermission, type OrgAgent } from '@/lib/api-client';
 import { Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +46,11 @@ export default function AdminOrganizationPage() {
   const [grantUserId, setGrantUserId] = useState('');
   const [grantAgentId, setGrantAgentId] = useState('');
   const [revokeId, setRevokeId] = useState<string | null>(null);
+
+  // Gmail Integration
+  const { data: gmailStatus, isLoading: gmailLoading } = useGmailStatus();
+  const connectGmail = useConnectGmail();
+  const disconnectGmail = useDisconnectGmail();
 
   return (
     <DashboardLayout requireAdmin>
@@ -156,9 +162,62 @@ export default function AdminOrganizationPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Gmail Integration Card */}
+                <Card className="bg-card/20 border-border/40 backdrop-blur-sm md:col-span-2">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                      <Mail className="h-4 w-4" /> Invitation Sender (Gmail OAuth)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="space-y-1 max-w-xl">
+                        <p className="text-sm text-foreground font-medium">
+                          Connect your company Gmail account to send member invitations from your own email address.
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          By default, invitations are sent via our system SMTP. Connecting your Gmail provides a more professional experience for your team members.
+                        </p>
+                      </div>
+
+                      <div className="shrink-0">
+                        {gmailLoading ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        ) : gmailStatus?.connected ? (
+                          <div className="flex items-center gap-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] uppercase font-bold text-emerald-500/70 tracking-tight">Connected as</span>
+                              <span className="text-sm font-semibold text-foreground">{gmailStatus.gmail_email}</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-8"
+                              onClick={() => disconnectGmail.mutate()}
+                              disabled={disconnectGmail.isPending}
+                            >
+                              {disconnectGmail.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Disconnect'}
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button 
+                            className="bg-white text-black hover:bg-white/90 font-bold"
+                            onClick={() => connectGmail.mutate()}
+                            disabled={connectGmail.isPending}
+                          >
+                            {connectGmail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
+                            Connect Company Gmail
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </TabsContent>
+
 
           {/* Members */}
           <TabsContent value="members" className="mt-6">
