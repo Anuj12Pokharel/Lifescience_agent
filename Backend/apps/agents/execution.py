@@ -29,6 +29,71 @@ _CRM_PROVIDERS = {
     "gohighlevel", "ghl", "hubspot", "salesforce", "zoho", "pipedrive",
 }
 
+# ── Intent tables per provider ────────────────────────────────────────────────
+# These are the EXACT intent strings n8n expects for each provider.
+# Gemini must output one of these — nothing else.
+
+_INTENTS_JIRA = [
+    "create_task",      # create a new issue/ticket/task
+    "search_task",      # find issues by keyword, assignee, status, etc.
+    "update_task",      # change status, priority, description of an issue
+    "assign_task",      # assign an issue to a user
+    "get_task_info",    # fetch details of a specific issue/ticket
+    "add_comment",      # add a comment to an issue
+    "track_status",     # check current status / progress of a task
+    "view_dashboard",   # overall summary / sprint / project stats
+    "list_project",     # list all projects in Jira
+    "edit_task",        # edit title, description, labels, story points etc.
+    "help",             # user is asking what the agent can do
+    "general",          # greeting, chitchat, off-topic — answer directly without n8n
+]
+
+_INTENTS_GOHIGHLEVEL = [
+    "SEARCH_CONTACTS",  # search/find a contact by name, email, phone
+    "CREATE_CONTACT",   # create a new CRM contact
+    "EDIT_CONTACT",     # update contact details (phone, email, name, tags)
+    "LIST_PROJECTS",    # list pipelines / projects in GHL
+    "SEARCH_TASKS",     # search tasks / opportunities in a pipeline
+    "dashboard",        # show summary stats / CRM overview
+    "list_convs",       # list recent conversations
+    "send_msg",         # send a message to a contact
+    "create_task",      # create a task / opportunity in a pipeline
+    "list_notes",       # list notes for a contact or deal
+    "help",             # user asking what agent can do
+    "create_pipeline",  # create a new pipeline
+    "skip",             # user wants to skip / cancel current action
+    "general",          # greeting, chitchat — answer directly without n8n
+]
+
+# Fallback for any tracker without a specific table (trello, asana, linear, etc.)
+_INTENTS_GENERIC_TRACKER = [
+    "CREATE_TASK", "SEARCH_TASKS", "UPDATE_TASK", "ASSIGN_TASK",
+    "GET_TASK_INFO", "ADD_COMMENT", "TRACK_STATUS", "VIEW_DASHBOARD",
+    "LIST_PROJECTS", "EDIT_TASK", "help", "general",
+]
+
+_INTENTS_GENERIC_CRM = [
+    "SEARCH_CONTACTS", "CREATE_CONTACT", "EDIT_CONTACT", "LIST_PROJECTS",
+    "SEARCH_TASKS", "dashboard", "list_convs", "send_msg", "create_task",
+    "list_notes", "help", "create_pipeline", "general",
+]
+
+
+def _get_intent_table(tracker: str, crm: str) -> tuple[list, str]:
+    """
+    Returns (intent_list, primary_provider_name) for the current session.
+    Tracker takes priority over CRM when both are connected.
+    """
+    if tracker == "jira":
+        return _INTENTS_JIRA, "jira"
+    if crm in ("gohighlevel", "ghl"):
+        return _INTENTS_GOHIGHLEVEL, "gohighlevel"
+    if tracker in _TRACKER_PROVIDERS:
+        return _INTENTS_GENERIC_TRACKER, tracker
+    if crm in _CRM_PROVIDERS:
+        return _INTENTS_GENERIC_CRM, crm
+    return _INTENTS_GENERIC_TRACKER, "unknown"
+
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 
@@ -59,9 +124,16 @@ def gemini_preprocess(message: str, agent, conversation_history: list,
     """
     Brain IN — understands the user message in full context and returns
     a structured JSON payload that n8n uses to execute the right action.
+
+    The intent is ALWAYS one of the provider-specific values in _get_intent_table()
+    so n8n's intent router receives the exact string it expects.
     """
     if not api_key:
         return {}
+
+    # ── Resolve which intent table to use ────────────────────────────────────
+    intent_list, primary_provider = _get_intent_table(tracker, crm)
+    valid_intents_str = " | ".join(intent_list)
 
     system_prompt = agent.system_prompt or f"You are {agent.name}, an AI assistant."
 
@@ -87,41 +159,82 @@ def gemini_preprocess(message: str, agent, conversation_history: list,
     if crm:
         tools_text.append(f"crm={crm}")
 
-    prompt = f"""You are an AI agent router. Analyze the user message and return ONLY valid JSON.
+    # ── Build provider-specific intent guidance ───────────────────────────────
+    if primary_provider == "jira":
+        intent_guidance = """
+JIRA INTENT RULES (use EXACTLY these strings):
+- create_task     → user wants to create a new issue / ticket / task / bug / story
+- search_task     → user wants to find / list / filter issues by keyword, assignee, status, sprint
+- update_task     → user wants to change the status, priority, or description of an issue
+- assign_task     → user wants to assign an issue to someone ("assign PROJ-10 to John")
+- get_task_info   → user wants details about a specific issue key (e.g. "show me SCRUM-42")
+- add_comment     → user wants to add a comment to an issue
+- track_status    → user wants to know current status / progress of a task or sprint
+- view_dashboard  → user wants an overview — sprint stats, burndown, team workload
+- list_project    → user wants to see all Jira projects ("list projects", "my projects")
+- edit_task       → user wants to edit title, description, labels, story points of an issue
+- help            → user asks what the agent can do ("what can you do?", "help me")
+- general         → greeting, chitchat, thanks — DO NOT call n8n for this"""
+
+    elif primary_provider in ("gohighlevel", "ghl"):
+        intent_guidance = """
+GOHIGHLEVEL INTENT RULES (use EXACTLY these strings):
+- SEARCH_CONTACTS  → find / look up a contact by name, email, or phone
+- CREATE_CONTACT   → create a new contact in the CRM
+- EDIT_CONTACT     → update a contact's details (phone, email, name, tags)
+- LIST_PROJECTS    → list pipelines / stages in GoHighLevel
+- SEARCH_TASKS     → search tasks / opportunities in a pipeline
+- dashboard        → show CRM summary, stats, overview
+- list_convs       → list recent conversations / messages
+- send_msg         → send a message to a contact
+- create_task      → create a task / opportunity in a pipeline
+- list_notes       → list notes for a contact or deal
+- help             → user asks what the agent can do
+- create_pipeline  → create a new pipeline in GHL
+- skip             → user wants to cancel / skip current action
+- general          → greeting, chitchat, thanks — DO NOT call n8n for this"""
+
+    else:
+        intent_guidance = f"""
+INTENT RULES for {primary_provider.upper()} (use EXACTLY these strings):
+{chr(10).join(f'- {i}' for i in intent_list)}
+- general → greeting / chitchat — answer directly, do NOT call n8n"""
+
+    prompt = f"""You are an AI intent router. Analyze the user message and return ONLY valid JSON.
 
 Agent: {agent.name}
 Agent Purpose: {system_prompt}
 Organization: {org_name}
 Connected Tools: {', '.join(tools_text) or 'none'}
+Primary Provider: {primary_provider}
 Available Projects/Pipelines: {projects_text or 'none'}
-Current Project: {last_project_key or 'none'}
+Current Project Context: {last_project_key or 'none'}
 
 Conversation History (most recent last):
 {history_text or 'none'}
 
 User Message: {message}
 
-CONTEXT RESOLUTION RULES (critical — apply before choosing intent):
-- If user says "this task", "that task", "it", "the task", "the ticket", "the issue" — scan conversation history for the most recently mentioned task/issue key (e.g. SCRUM-60, PROJ-123, TASK-5) and use it as task_key
-- If user says "assign it to X", "assign this to X", "assign to X" — intent=ASSIGN_TASK, use the task key from history, assignee=X
-- If user says "try again", "do it again", "retry", "please do it" — look at the last user intent in history and repeat it with the same parameters (intent=RETRY means copy the previous intent exactly)
-- If user refers to a person by name only (e.g. "salon gautam", "john") and it is clearly an assignee — set assignee to that full name as-is
-- Always resolve "this"/"that"/"it" from history — never ask the user to repeat information already provided
+{intent_guidance}
 
-INTENT RULES:
-- GENERAL: greetings, thanks, questions about the agent itself, chitchat, anything not requiring a tool action — return this for conversational messages
-- LIST_PROJECTS: "what are my projects", "list projects", "show projects", "my projects" — use this for Jira/Trello/Asana/Linear
-- CREATE_PIPELINE: ONLY when tracker=gohighlevel/ghl AND message says "create pipeline", "new pipeline", "add pipeline"
-- LIST_PIPELINES: ONLY when tracker=gohighlevel/ghl AND message says "list pipelines", "show pipelines", "my pipelines"
-- ADD_PIPELINE_STAGE: ONLY when tracker=gohighlevel/ghl AND message says "add stage", "create stage", "new stage in pipeline"
-- EDIT_CONTACT: extract contact_name, contact_phone, contact_email. "change phone to X" → contact_phone=X, "update email to X" → contact_email=X
-- CREATE_CONTACT: extract contact_name, contact_email, contact_phone
-- NEVER use LIST_PIPELINES for Jira/Trello/Asana/Linear — use LIST_PROJECTS instead
+CONTEXT RESOLUTION RULES (apply before choosing intent):
+- "this task" / "that task" / "it" / "the ticket" → scan history for most recent issue key (e.g. PROJ-10, SCRUM-42) → set as task_key
+- "assign it to X" / "assign this to X" → intent=assign_task (jira) or SEARCH_TASKS (ghl), task_key from history, assignee=X
+- "try again" / "retry" / "do it again" → repeat the last non-general intent from history with same parameters
+- Person name used as assignee → set assignee to full name as-is
+- Always resolve "this"/"that"/"it" from history — never ask user to repeat info
+
+PARAMETER EXTRACTION:
+- due_date: convert natural language to ISO format (e.g. "20 April" → "2025-04-20", "next Monday" → calculate)
+- priority: normalise to "low" | "medium" | "high" | "urgent" (jira) or "low" | "medium" | "high" (ghl)
+- task_name / contact_name: extract verbatim from message
+- project_key: use resolved_project_key if user says "this project" or no project specified
 
 Return ONLY this JSON (no markdown, no explanation):
 {{
-  "intent": "CREATE_TASK|SEARCH_CONTACTS|LIST_PROJECTS|SEARCH_TASKS|UPDATE_TASK|ASSIGN_TASK|CREATE_CONTACT|EDIT_CONTACT|LIST_CONVERSATIONS|SEND_MESSAGE|VIEW_DASHBOARD|TRACK_STATUS|SET_REMINDER|GET_HELP|GENERAL|CREATE_PIPELINE|LIST_PIPELINES|ADD_PIPELINE_STAGE",
+  "intent": "{valid_intents_str.split(' | ')[0]}",
   "confidence": 0.95,
+  "provider": "{primary_provider}",
   "parameters": {{
     "task_name": null,
     "task_key": null,
@@ -141,10 +254,13 @@ Return ONLY this JSON (no markdown, no explanation):
     "stage_name": null
   }},
   "resolved_project_key": "{last_project_key or ''}",
-  "instructions": "brief instruction for n8n on what to do"
-}}"""
+  "instructions": "one-line instruction for n8n describing what to do"
+}}
 
-    raw = _call_gemini(prompt, api_key, max_tokens=500)
+VALID INTENTS FOR THIS SESSION: {valid_intents_str}
+You MUST use one of these exact strings for "intent". No other values allowed."""
+
+    raw = _call_gemini(prompt, api_key, max_tokens=600)
     if not raw:
         return {}
 
@@ -152,7 +268,12 @@ Return ONLY this JSON (no markdown, no explanation):
         cleaned = raw.replace("```json", "").replace("```", "").strip()
         match = __import__("re").search(r"\{[\s\S]*\}", cleaned)
         if match:
-            return json.loads(match.group(0))
+            result = json.loads(match.group(0))
+            # Safety: if Gemini returned an intent not in our table, fall back to general
+            if result.get("intent") not in intent_list:
+                result["intent"] = "general"
+                result["confidence"] = 0.3
+            return result
     except Exception:
         pass
 
@@ -589,7 +710,15 @@ def execute_agent(user, agent, message: str, extra: dict = None) -> dict:
 
 def _get_agent_webhook(slug: str) -> str:
     key = f"N8N_WEBHOOK_{slug.upper().replace('-', '_')}"
-    return os.environ.get(key, "")
+    # os.environ first (shell / Docker env), then fall back to .env via decouple
+    val = os.environ.get(key, "")
+    if not val:
+        try:
+            from decouple import config as _config
+            val = _config(key, default="")
+        except Exception:
+            pass
+    return val
 
 
 def refresh_credentials_if_needed():

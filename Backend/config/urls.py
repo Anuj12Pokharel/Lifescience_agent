@@ -41,6 +41,7 @@ urlpatterns = [
     path("internal/reminders/due/", InternalReminderView.as_view(), name="internal-reminder-due"),
     path("internal/reminders/<uuid:reminder_id>/sent/", InternalReminderView.as_view(), name="internal-reminder-sent"),
     path("api/v1/integrations/", include("apps.integrations.urls", namespace="integrations")),
+    path("api/v1/usage/", include("apps.agents.usage_urls", namespace="usage")),
 ]
 
 # ── Serve media files in development ─────────────────────────────────────────

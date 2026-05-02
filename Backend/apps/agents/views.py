@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsSuperAdmin
 from apps.agents.execution import execute_agent
 from apps.agents.models import Agent, AgentUsageLog, UserAgentAccess
+from apps.agents.usage_views import _check_limit_exceeded
 from apps.agents.serializers import (
     AgentListSerializer,
     AgentSerializer,
@@ -439,6 +440,20 @@ class AgentExecuteView(APIView):
 
         if not _user_has_agent_access(request.user, agent):
             raise PermissionDenied("You do not have access to this agent.")
+
+        # Block if user has exceeded their time limit for this agent
+        limit_min, used_min, exceeded = _check_limit_exceeded(request.user, agent)
+        if exceeded:
+            return Response(
+                {
+                    "success": False,
+                    "error": f"You have reached your {limit_min}-minute time limit for {agent.name}. Please contact your administrator.",
+                    "limit_exceeded": True,
+                    "limit_minutes": limit_min,
+                    "used_minutes": round(used_min, 1),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         message = request.data.get("message", "").strip()
         if not message:

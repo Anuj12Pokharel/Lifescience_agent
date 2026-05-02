@@ -185,7 +185,7 @@ FERNET_KEY = config("FERNET_KEY", default="")
 
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
-    default="http://localhost:3000,http://127.0.0.1:3000",
+    default="http://localhost:3000,http://127.0.0.1:3000,https://ai.lifescienceaiagents.com",
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
