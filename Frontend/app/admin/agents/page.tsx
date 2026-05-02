@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Bot, Lock, Plug, Users, AlertTriangle, CheckCircle2, Plus,
-  ExternalLink, Search
+  ExternalLink, Search, Loader2
 } from 'lucide-react';
 import { useOrgAgents } from '@/lib/hooks/use-organizations';
 import { useAgentPermissions, useGrantAgentPermission, useOrgMembers } from '@/lib/hooks/use-organizations';

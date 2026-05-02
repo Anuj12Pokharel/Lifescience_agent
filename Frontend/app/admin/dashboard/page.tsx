@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard-layout';
-import { Users, Bot, Shield, Activity, UsersRound, ArrowRight, Building, Calendar } from 'lucide-react';
+import { Users, Bot, Shield, Activity, UsersRound, ArrowRight, Building, Calendar, Plug } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
 import { useQuery } from '@tanstack/react-query';
