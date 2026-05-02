@@ -46,24 +46,15 @@ RUN addgroup --system --gid 1001 django \
     && mkdir -p /app/staticfiles /app/media \
     && chown -R django:django /app
 
-USER django
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Collect static files (requires SECRET_KEY to be set)
-ARG SECRET_KEY=build-time-placeholder-key
-RUN python manage.py collectstatic --noinput
+USER django
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/api/v1/health/ || exit 1
+    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
 
-CMD ["gunicorn", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "3", \
-     "--worker-class", "sync", \
-     "--worker-tmp-dir", "/dev/shm", \
-     "--timeout", "60", \
-     "--keep-alive", "5", \
-     "--log-level", "info", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+ENTRYPOINT ["/entrypoint.sh"]
