@@ -20,6 +20,7 @@ export function useUsers(params: ListUsersParams = {}) {
   return useQuery({
     queryKey: userKeys.list(params),
     queryFn: () => usersApi.list(params),
+    enabled: Object.keys(params).length > 0,
     placeholderData: (prev) => prev,
   });
 }

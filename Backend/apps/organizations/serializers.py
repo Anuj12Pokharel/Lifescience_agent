@@ -52,6 +52,9 @@ class OrganizationUpdateSerializer(serializers.ModelSerializer):
 class OrgAgentAccessSerializer(serializers.ModelSerializer):
     agent_name = serializers.CharField(source="agent.name", read_only=True)
     agent_slug = serializers.CharField(source="agent.slug", read_only=True)
+    subscribed_by_email = serializers.CharField(
+        source="subscribed_by.email", read_only=True, default=None
+    )
     disabled_by_email = serializers.CharField(
         source="disabled_by.email", read_only=True, default=None
     )
@@ -60,16 +63,19 @@ class OrgAgentAccessSerializer(serializers.ModelSerializer):
         model = OrgAgentAccess
         fields = [
             "id", "agent", "agent_name", "agent_slug",
-            "is_enabled", "enabled_at", "disabled_by_email", "disabled_at", "notes",
+            "is_enabled", "subscription_type",
+            "subscribed_by_email", "subscribed_at",
+            "disabled_by_email", "disabled_at", "notes",
         ]
         read_only_fields = [
             "id", "agent", "agent_name", "agent_slug",
-            "enabled_at", "disabled_by_email", "disabled_at",
+            "subscription_type", "subscribed_by_email", "subscribed_at",
+            "disabled_by_email", "disabled_at",
         ]
 
 
 class OrgAgentToggleSerializer(serializers.Serializer):
-    """Superadmin enables/disables an agent for an org."""
+    """Superadmin grants or revokes an agent for an org."""
     is_enabled = serializers.BooleanField()
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 
@@ -77,16 +83,23 @@ class OrgAgentToggleSerializer(serializers.Serializer):
         from django.utils import timezone
         access, _ = OrgAgentAccess.objects.get_or_create(
             org=org, agent=agent,
-            defaults={"is_enabled": True},
+            defaults={
+                "is_enabled": True,
+                "subscription_type": OrgAgentAccess.SubscriptionType.SUPERADMIN,
+                "subscribed_by": disabled_by,
+            },
         )
         access.is_enabled = self.validated_data["is_enabled"]
         access.notes = self.validated_data.get("notes", "")
-        if not access.is_enabled:
-            access.disabled_by = disabled_by
-            access.disabled_at = timezone.now()
-        else:
+        if access.is_enabled:
+            # (Re-)granting — record as superadmin grant
+            access.subscription_type = OrgAgentAccess.SubscriptionType.SUPERADMIN
+            access.subscribed_by = disabled_by
             access.disabled_by = None
             access.disabled_at = None
+        else:
+            access.disabled_by = disabled_by
+            access.disabled_at = timezone.now()
         access.save()
         return access
 

@@ -7,6 +7,7 @@ from apps.agents.views import (
     AgentExecuteView,
     AgentListCreateView,
     AgentToggleStatusView,
+    AgentVoiceView,
     MyAgentsView,
     PublicAgentListView,
 )
@@ -25,6 +26,7 @@ urlpatterns = [
 
     # ── User: execute agent ───────────────────────────────────────────────────
     path("<slug:slug>/execute/", AgentExecuteView.as_view(), name="execute"),
+    path("<slug:slug>/voice/", AgentVoiceView.as_view(), name="voice"),
 
     # ── SuperAdmin: Agent CRUD ────────────────────────────────────────────────
     path("", AgentListCreateView.as_view(), name="list-create"),

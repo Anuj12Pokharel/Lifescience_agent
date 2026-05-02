@@ -15,6 +15,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 
+# ── DB: no persistent connections locally (avoids Docker TCP resets) ──────────
+DATABASES["default"]["CONN_MAX_AGE"] = 0  # noqa: F405
+
 # ── DRF: add browsable API renderer in dev ─────────────────────────────────
 
 REST_FRAMEWORK = {  # noqa: F405

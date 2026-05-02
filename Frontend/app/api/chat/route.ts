@@ -190,8 +190,7 @@ async function handleTextRequest(request: NextRequest) {
   }
 
   const webhookUrl =
-    process.env.N8N_WEBHOOK_URL ||
-    'https://agenticaiau.app.n8n.cloud/webhook/life-science-webhook';
+    process.env.N8N_WEBHOOK_URL
 
   const currentSessionId = sessionId || `session-${Date.now()}`;
 
@@ -223,17 +222,30 @@ async function handleTextRequest(request: NextRequest) {
   console.log('[chat] → n8n | sessionId:', currentSessionId);
   console.log('[chat] → sessionState:', JSON.stringify(outboundSessionState));
 
-  const n8nResponse = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sessionId: currentSessionId,
-      action: 'sendMessage',
-      chatInput: message,
-      // Always send the full sessionState back so n8n can resume mid-flow
-      sessionState: outboundSessionState,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+  let n8nResponse: Response;
+  try {
+    n8nResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: currentSessionId,
+        action: 'sendMessage',
+        chatInput: message,
+        sessionState: outboundSessionState,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if ((err as Error).name === 'AbortError') {
+      throw new Error('n8n webhook timed out after 25 seconds');
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   console.log('[chat] n8n status:', n8nResponse.status);
 
@@ -391,10 +403,24 @@ async function handleAudioRequest(request: NextRequest) {
     n8nFormData.append('sessionState', JSON.stringify(audioSessionState));
   }
 
-  const n8nResponse = await fetch(audioWebhookUrl, {
-    method: 'POST',
-    body: n8nFormData,
-  });
+  const audioController = new AbortController();
+  const audioTimeoutId = setTimeout(() => audioController.abort(), 30000);
+
+  let n8nResponse: Response;
+  try {
+    n8nResponse = await fetch(audioWebhookUrl, {
+      method: 'POST',
+      body: n8nFormData,
+      signal: audioController.signal,
+    });
+  } catch (err) {
+    clearTimeout(audioTimeoutId);
+    if ((err as Error).name === 'AbortError') {
+      throw new Error('n8n audio webhook timed out after 30 seconds');
+    }
+    throw err;
+  }
+  clearTimeout(audioTimeoutId);
 
   console.log('[chat] n8n audio status:', n8nResponse.status);
 

@@ -44,6 +44,10 @@ class Agent(models.Model):
         default=100,
         help_text="Efficiency percentage (0–100)"
     )
+    system_prompt = models.TextField(
+        blank=True,
+        help_text="Instructions for the AI brain — defines agent personality, scope, and behavior.",
+    )
     config = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -157,3 +161,86 @@ class AgentUsageLog(models.Model):
 
     def __str__(self):
         return f"{self.user} | {self.agent} | {self.action}"
+
+
+class UsageSession(models.Model):
+    """Tracks active chat time per user per agent. Timer pauses when tab is inactive."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="usage_sessions",
+    )
+    agent = models.ForeignKey(
+        Agent,
+        on_delete=models.CASCADE,
+        related_name="usage_sessions",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    # Active seconds accumulated (updated on heartbeat + end)
+    seconds_active = models.PositiveIntegerField(default=0)
+    last_heartbeat = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "agents_usage_session"
+        verbose_name = "Usage Session"
+        verbose_name_plural = "Usage Sessions"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["user", "agent"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["started_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user} | {self.agent} | {self.seconds_active}s"
+
+    @property
+    def minutes_active(self):
+        return round(self.seconds_active / 60, 1)
+
+
+class AgentTimeLimit(models.Model):
+    """
+    Time limit (in minutes) for an agent, scoped to a target user/admin.
+    - Superadmin sets limit on an admin: target_user=admin, set_by=superadmin
+    - Admin sets limit on a user: target_user=user, set_by=admin
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    agent = models.ForeignKey(
+        Agent,
+        on_delete=models.CASCADE,
+        related_name="time_limits",
+    )
+    # The user/admin being restricted
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="agent_time_limits",
+    )
+    # Who set this limit
+    set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="set_time_limits",
+    )
+    limit_minutes = models.PositiveIntegerField(help_text="Max allowed minutes for this agent")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "agents_time_limit"
+        verbose_name = "Agent Time Limit"
+        verbose_name_plural = "Agent Time Limits"
+        unique_together = [("agent", "target_user")]
+        indexes = [
+            models.Index(fields=["target_user"]),
+            models.Index(fields=["agent", "target_user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.target_user} | {self.agent} | {self.limit_minutes}min"

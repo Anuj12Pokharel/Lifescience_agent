@@ -127,6 +127,25 @@ class OrgAgentToggleView(APIView):
         )
 
 
+# ── Admin: stats (member count + group count) ─────────────────────────────────
+
+class AdminStatsView(APIView):
+    """Admin sees a summary: how many members and how many groups they own."""
+    permission_classes = [IsOrgOwner]
+
+    def get(self, request):
+        from apps.agents.group_models import AgentGroup
+        org = request.user.owned_organization
+        member_count = org.member_count()
+        group_count = AgentGroup.objects.filter(created_by=request.user, is_active=True).count()
+        agent_count = org.enabled_agent_count()
+        return _ok({
+            "member_count": member_count,
+            "group_count": group_count,
+            "subscribed_agent_count": agent_count,
+        })
+
+
 # ── Admin: members of my org ──────────────────────────────────────────────────
 
 class OrgMemberListView(APIView):
@@ -187,7 +206,9 @@ class AdminAgentCatalogView(APIView):
 
     Admin sees ALL active agents in the platform.
     Each agent shows:
-      - is_blocked_by_superadmin  → superadmin disabled this agent for this org
+      - is_subscribed             → org has an active subscription to this agent
+      - subscription_type         → "self" | "superadmin" | null
+      - can_subscribe             → True if org hasn't hit plan agent limit
       - integration_connected     → org has credentials saved for this agent
       - users_with_access         → how many org members can use this agent
     """
@@ -201,12 +222,13 @@ class AdminAgentCatalogView(APIView):
 
         agents = Agent.objects.filter(is_active=True).order_by("name")
 
-        # Fetch org-level disable records (absence = enabled)
-        disabled_agent_ids = set(
-            OrgAgentAccess.objects.filter(
-                org=org, is_enabled=False
-            ).values_list("agent_id", flat=True)
-        )
+        # Fetch active org subscriptions: agent_id → subscription_type
+        subscriptions = {
+            row["agent_id"]: row["subscription_type"]
+            for row in OrgAgentAccess.objects.filter(
+                org=org, is_enabled=True
+            ).values("agent_id", "subscription_type")
+        }
 
         # Fetch which agents have integration credentials connected
         connected_agent_ids = set(
@@ -215,15 +237,18 @@ class AdminAgentCatalogView(APIView):
             ).values_list("provider__agent_id", flat=True)
         )
 
-        # Fetch per-agent user count
+        # Fetch per-agent user count (org members with explicit UserAgentPermission)
         from apps.organizations.models import UserAgentPermission as UAP
         user_counts = {}
         for perm in UAP.objects.filter(org=org, is_active=True).values("agent_id"):
-            agent_id = perm["agent_id"]
-            user_counts[agent_id] = user_counts.get(agent_id, 0) + 1
+            aid = perm["agent_id"]
+            user_counts[aid] = user_counts.get(aid, 0) + 1
+
+        can_subscribe = org.can_add_agent()
 
         results = []
         for agent in agents:
+            sub_type = subscriptions.get(agent.id)
             results.append({
                 "id": str(agent.id),
                 "name": agent.name,
@@ -234,12 +259,120 @@ class AdminAgentCatalogView(APIView):
                 "status": agent.status,
                 "latency": agent.latency,
                 "efficiency": agent.efficiency,
-                "is_blocked_by_superadmin": agent.id in disabled_agent_ids,
+                "is_subscribed": agent.id in subscriptions,
+                "subscription_type": sub_type,
+                "can_subscribe": can_subscribe or (agent.id in subscriptions),
                 "integration_connected": agent.id in connected_agent_ids,
                 "users_with_access": user_counts.get(agent.id, 0),
             })
 
         return _ok(results)
+
+
+class AdminAgentSubscribeView(APIView):
+    """
+    POST   /api/v1/organizations/me/agents/<uuid:agent_id>/subscribe/
+           Admin self-subscribes their org to an agent.
+           Checks plan agent limit before allowing a new subscription.
+
+    DELETE /api/v1/organizations/me/agents/<uuid:agent_id>/subscribe/
+           Admin unsubscribes (sets is_enabled=False on their own record).
+           Cannot unsubscribe from a superadmin-granted subscription.
+    """
+    permission_classes = [IsOrgOwner]
+
+    def _get_agent(self, agent_id):
+        from apps.agents.models import Agent
+        try:
+            return Agent.objects.get(pk=agent_id, is_active=True)
+        except Agent.DoesNotExist:
+            return None
+
+    def post(self, request, agent_id):
+        agent = self._get_agent(agent_id)
+        if not agent:
+            return Response({"detail": "Agent not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        org = request.user.owned_organization
+
+        existing = OrgAgentAccess.objects.filter(org=org, agent=agent).first()
+
+        if existing and existing.is_enabled:
+            return _ok(
+                data={"agent_id": str(agent.id), "subscription_type": existing.subscription_type},
+                message="Already subscribed to this agent.",
+            )
+
+        if existing:
+            # Was disabled — re-enable only if it was a self-subscription
+            if existing.subscription_type == OrgAgentAccess.SubscriptionType.SUPERADMIN:
+                return Response(
+                    {"detail": "This agent was disabled by a superadmin and cannot be re-enabled here."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if not org.can_add_agent():
+                return Response(
+                    {"detail": f"Your plan allows a maximum of {org.plan.max_agents} subscribed agents."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            existing.is_enabled = True
+            existing.subscribed_by = request.user
+            existing.disabled_by = None
+            existing.disabled_at = None
+            existing.save(update_fields=["is_enabled", "subscribed_by", "disabled_by", "disabled_at"])
+            access = existing
+        else:
+            if not org.can_add_agent():
+                return Response(
+                    {"detail": f"Your plan allows a maximum of {org.plan.max_agents} subscribed agents."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            access = OrgAgentAccess.objects.create(
+                org=org,
+                agent=agent,
+                is_enabled=True,
+                subscription_type=OrgAgentAccess.SubscriptionType.SELF,
+                subscribed_by=request.user,
+            )
+
+        return _ok(
+            data={
+                "agent_id": str(agent.id),
+                "agent_name": agent.name,
+                "subscription_type": access.subscription_type,
+            },
+            message=f"Successfully subscribed to {agent.name}.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request, agent_id):
+        agent = self._get_agent(agent_id)
+        if not agent:
+            return Response({"detail": "Agent not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        org = request.user.owned_organization
+
+        try:
+            access = OrgAgentAccess.objects.get(org=org, agent=agent)
+        except OrgAgentAccess.DoesNotExist:
+            return _ok(message="Not subscribed to this agent.")
+
+        if not access.is_enabled:
+            return _ok(message="Already unsubscribed from this agent.")
+
+        if access.subscription_type == OrgAgentAccess.SubscriptionType.SUPERADMIN:
+            return Response(
+                {"detail": "This subscription was granted by a superadmin and cannot be removed here."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from django.utils import timezone as tz
+        access.is_enabled = False
+        access.disabled_by = request.user
+        access.disabled_at = tz.now()
+        access.save(update_fields=["is_enabled", "disabled_by", "disabled_at"])
+
+        return _ok(message=f"Unsubscribed from {agent.name}.")
 
 
 # ── Internal: n8n → Django callback ──────────────────────────────────────────
@@ -378,11 +511,15 @@ class InternalSessionView(APIView):
         # Use stored creds if present; fall back to rebuilding from OrgIntegrationCredential
         tracker_creds = session.tracker_creds or {}
         messenger_creds = session.messenger_creds or {}
-        if (not tracker_creds or not messenger_creds) and session.org and session.agent_slug:
+        crm_creds = session.crm_creds or {}
+        if (not tracker_creds or not messenger_creds or not crm_creds) and session.org and session.agent_slug:
             try:
                 from apps.agents.models import Agent
                 from apps.integrations.models import OrgIntegrationCredential
-                from apps.agents.execution import _TRACKER_PROVIDERS, _MESSENGER_PROVIDERS, _build_tracker_creds, _build_messenger_creds
+                from apps.agents.execution import (
+                    _TRACKER_PROVIDERS, _MESSENGER_PROVIDERS, _CRM_PROVIDERS,
+                    _build_tracker_creds, _build_messenger_creds, _build_crm_creds,
+                )
                 agent = Agent.objects.get(slug=session.agent_slug)
                 credentials = OrgIntegrationCredential.objects.filter(
                     org=session.org, provider__agent=agent, is_active=True
@@ -393,6 +530,8 @@ class InternalSessionView(APIView):
                         tracker_creds = _build_tracker_creds(cred)
                     elif slug in _MESSENGER_PROVIDERS and not messenger_creds:
                         messenger_creds = _build_messenger_creds(cred)
+                    elif slug in _CRM_PROVIDERS and not crm_creds:
+                        crm_creds = _build_crm_creds(cred)
             except Exception:
                 pass
 
@@ -408,6 +547,8 @@ class InternalSessionView(APIView):
             "tracker_creds": tracker_creds,
             "messenger": session.messenger,
             "messenger_creds": messenger_creds,
+            "crm": session.crm,
+            "crm_creds": crm_creds,
             "default_channel": session.default_channel,
             "available_projects": session.available_projects,
             "last_project_key": session.last_project_key,
@@ -548,7 +689,10 @@ class InternalCompaniesAllView(APIView):
 
         from apps.agents.models import Agent
         from apps.integrations.models import OrgIntegrationCredential
-        from apps.agents.execution import _TRACKER_PROVIDERS, _MESSENGER_PROVIDERS, _build_tracker_creds, _build_messenger_creds
+        from apps.agents.execution import (
+            _TRACKER_PROVIDERS, _MESSENGER_PROVIDERS, _CRM_PROVIDERS,
+            _build_tracker_creds, _build_messenger_creds, _build_crm_creds,
+        )
 
         results = []
 
@@ -566,7 +710,8 @@ class InternalCompaniesAllView(APIView):
             # Use stored creds if present; fall back to rebuilding from OrgIntegrationCredential
             tracker_creds = config.tracker_creds or {}
             messenger_creds = config.messenger_creds or {}
-            if not tracker_creds or not messenger_creds:
+            crm_creds = config.crm_creds or {}
+            if not tracker_creds or not messenger_creds or not crm_creds:
                 credentials = OrgIntegrationCredential.objects.filter(
                     org=org, provider__agent=agent, is_active=True
                 ).select_related("provider")
@@ -576,6 +721,8 @@ class InternalCompaniesAllView(APIView):
                         tracker_creds = _build_tracker_creds(cred)
                     elif slug in _MESSENGER_PROVIDERS and not messenger_creds:
                         messenger_creds = _build_messenger_creds(cred)
+                    elif slug in _CRM_PROVIDERS and not crm_creds:
+                        crm_creds = _build_crm_creds(cred)
 
             # Only include if we actually have usable credentials for both
             if not tracker_creds or not messenger_creds:
@@ -589,6 +736,8 @@ class InternalCompaniesAllView(APIView):
                 "tracker_creds": tracker_creds,
                 "messenger": config.messenger,
                 "messenger_creds": messenger_creds,
+                "crm": config.crm,
+                "crm_creds": crm_creds,
                 "default_channel": config.default_channel or "",
                 "gemini_api_key": config.extra.get("gemini_api_key", "") if config.extra else "",
                 "available_projects": config.available_projects,

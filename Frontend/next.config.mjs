@@ -1,12 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required for Docker standalone build (copies only necessary files)
-  output: 'standalone',
-
   typescript: {
     ignoreBuildErrors: true,
   },
-
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -31,5 +27,4 @@ const nextConfig = {
     ]
   },
 }
-
 export default nextConfig

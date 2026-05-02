@@ -1,7 +1,6 @@
 """
 Production settings.
 """
-import os
 from .base import *  # noqa: F401, F403
 
 DEBUG = False
@@ -44,25 +43,11 @@ SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# ── Media files (MinIO / Edge Storage) ───────────────────────────────────────
-
-if os.environ.get("USE_S3") == "True":
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    AWS_ACCESS_KEY_ID = os.environ.get("MINIO_ROOT_USER", "admin")
-    AWS_SECRET_ACCESS_KEY = os.environ.get("MINIO_ROOT_PASSWORD", "")
-    AWS_STORAGE_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME", "lifescience-media")
-    # This must be a public URL via Cloudflare Tunnels (e.g., https://storage.lifescienceaiagents.com)
-    AWS_S3_ENDPOINT_URL = os.environ.get("MINIO_PUBLIC_URL")
-    AWS_S3_REGION_NAME = "us-east-1"
-    AWS_S3_SIGNATURE_VERSION = "s3v4"
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_DEFAULT_ACL = None
-
 # ── Database: enforce SSL in production ──────────────────────────────────────
 
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     "connect_timeout": 10,
-    "sslmode": os.environ.get("DB_SSLMODE", "disable"),
+    "sslmode": "require",
 }
 
 # ── Email ─────────────────────────────────────────────────────────────────────

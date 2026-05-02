@@ -55,15 +55,16 @@ const oauthFormFromProvider = (p: IntegrationProvider): OAuthFormConfig => ({
 });
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
-const PRESETS: Array<{ provider: string; display_name: string; auth_type: 'oauth2' | 'apikey'; oauth_config?: OAuthFormConfig }> = [
+const PRESETS: Array<{ provider: string; display_name: string; auth_type: 'oauth2' | 'apikey'; oauth_config?: OAuthFormConfig; field_schema?: Array<Record<string, unknown>> }> = [
   { provider: 'jira',       display_name: 'Jira',       auth_type: 'oauth2', oauth_config: { auth_url: 'https://auth.atlassian.com/authorize', token_url: 'https://auth.atlassian.com/oauth/token', scopes: 'read:jira-work write:jira-work read:jira-user offline_access', client_id_setting: 'JIRA_CLIENT_ID', client_secret_setting: 'JIRA_CLIENT_SECRET', extra_params: 'audience=api.atlassian.com\nprompt=consent' } },
   { provider: 'asana',      display_name: 'Asana',      auth_type: 'oauth2', oauth_config: { auth_url: 'https://app.asana.com/-/oauth_authorize', token_url: 'https://app.asana.com/-/oauth_token', scopes: 'default', client_id_setting: 'ASANA_CLIENT_ID', client_secret_setting: 'ASANA_CLIENT_SECRET', extra_params: '' } },
   { provider: 'github',     display_name: 'GitHub',     auth_type: 'oauth2', oauth_config: { auth_url: 'https://github.com/login/oauth/authorize', token_url: 'https://github.com/login/oauth/access_token', scopes: 'repo read:user', client_id_setting: 'GITHUB_CLIENT_ID', client_secret_setting: 'GITHUB_CLIENT_SECRET', extra_params: '' } },
   { provider: 'slack',      display_name: 'Slack',      auth_type: 'oauth2', oauth_config: { auth_url: 'https://slack.com/oauth/v2/authorize', token_url: 'https://slack.com/api/oauth.v2.access', scopes: 'channels:read chat:write', client_id_setting: 'SLACK_CLIENT_ID', client_secret_setting: 'SLACK_CLIENT_SECRET', extra_params: '' } },
   { provider: 'notion',     display_name: 'Notion',     auth_type: 'oauth2', oauth_config: { auth_url: 'https://api.notion.com/v1/oauth/authorize', token_url: 'https://api.notion.com/v1/oauth/token', scopes: '', client_id_setting: 'NOTION_CLIENT_ID', client_secret_setting: 'NOTION_CLIENT_SECRET', extra_params: '' } },
   { provider: 'hubspot',    display_name: 'HubSpot',    auth_type: 'oauth2', oauth_config: { auth_url: 'https://app.hubspot.com/oauth/authorize', token_url: 'https://api.hubapi.com/oauth/v1/token', scopes: 'crm.objects.contacts.read', client_id_setting: 'HUBSPOT_CLIENT_ID', client_secret_setting: 'HUBSPOT_CLIENT_SECRET', extra_params: '' } },
-  { provider: 'salesforce', display_name: 'Salesforce', auth_type: 'oauth2', oauth_config: { auth_url: 'https://login.salesforce.com/services/oauth2/authorize', token_url: 'https://login.salesforce.com/services/oauth2/token', scopes: 'api refresh_token', client_id_setting: 'SALESFORCE_CLIENT_ID', client_secret_setting: 'SALESFORCE_CLIENT_SECRET', extra_params: '' } },
-  { provider: 'trello',     display_name: 'Trello',     auth_type: 'apikey' },
+  { provider: 'salesforce',    display_name: 'Salesforce',    auth_type: 'oauth2', oauth_config: { auth_url: 'https://login.salesforce.com/services/oauth2/authorize', token_url: 'https://login.salesforce.com/services/oauth2/token', scopes: 'api refresh_token', client_id_setting: 'SALESFORCE_CLIENT_ID', client_secret_setting: 'SALESFORCE_CLIENT_SECRET', extra_params: '' } },
+  { provider: 'gohighlevel', display_name: 'GoHighLevel', auth_type: 'apikey', field_schema: [{ name: 'api_key', label: 'API Key', type: 'password', optional: false }, { name: 'location_id', label: 'Location ID', type: 'text', optional: false }] },
+  { provider: 'trello',      display_name: 'Trello',      auth_type: 'apikey' },
   { provider: 'airtable',   display_name: 'Airtable',   auth_type: 'apikey' },
   { provider: 'custom',     display_name: 'Custom',     auth_type: 'apikey' },
 ];
@@ -198,7 +199,12 @@ export default function SuperadminPage() {
     setPresetChoice(v);
     if (v === '__custom__') { setProviderForm((f) => ({ ...f, provider: '', display_name: '', oauth_config: { ...BLANK_OAUTH } })); return; }
     const p = PRESETS.find((x) => x.provider === v);
-    if (p) setProviderForm((f) => ({ ...f, provider: p.provider, display_name: p.display_name, auth_type: p.auth_type, oauth_config: p.oauth_config ? { ...p.oauth_config } : { ...BLANK_OAUTH } }));
+    if (p) {
+      const fieldSchemaRaw = p.auth_type === 'apikey' && p.field_schema
+        ? JSON.stringify(p.field_schema, null, 2)
+        : '';
+      setProviderForm((f) => ({ ...f, provider: p.provider, display_name: p.display_name, auth_type: p.auth_type, oauth_config: p.oauth_config ? { ...p.oauth_config } : { ...BLANK_OAUTH }, field_schema_raw: fieldSchemaRaw }));
+    }
   };
 
   const oauthValid = providerForm.auth_type !== 'oauth2' || (
@@ -231,20 +237,21 @@ export default function SuperadminPage() {
   // ════════════════════════════════════════════════════════════════════════════
   // USERS TAB
   // ════════════════════════════════════════════════════════════════════════════
-  const [userSearch, setUserSearch]         = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [userSearch, setUserSearch]             = useState('');
+  const [submittedUserSearch, setSubmittedUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter]     = useState('all');
   const [userStatusFilter, setUserStatusFilter] = useState('all');
-  const [userPage, setUserPage]             = useState(1);
+  const [userPage, setUserPage]                 = useState(1);
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ['users-all', userPage, userSearch, userRoleFilter, userStatusFilter],
+    queryKey: ['users-all', userPage, submittedUserSearch, userRoleFilter, userStatusFilter],
     queryFn: () => usersApi.list({
       page: userPage, page_size: 20,
-      search: userSearch || undefined,
+      search: submittedUserSearch || undefined,
       role: userRoleFilter !== 'all' ? userRoleFilter : undefined,
       is_active: userStatusFilter === 'active' ? 'true' : userStatusFilter === 'inactive' ? 'false' : undefined,
     }),
-    enabled: !!user,
+    enabled: !!user && !!submittedUserSearch,
     placeholderData: (prev) => prev,
   });
   const userList: ApiUser[] = usersData?.results ?? [];
@@ -491,9 +498,18 @@ export default function SuperadminPage() {
           <TabsContent value="users">
             {/* Filters */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' as const }}>
-              <div style={{ position: 'relative' as const, flex: '1 1 220px' }}>
-                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(120,170,220,0.4)' }} />
-                <input value={userSearch} onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }} placeholder="Search email…" style={{ ...S.card, padding: '9px 12px 9px 32px', fontSize: 13, width: '100%', background: 'rgba(0,15,40,0.7)', color: '#E8F4FF', outline: 'none' }} />
+              <div style={{ position: 'relative' as const, flex: '1 1 280px', display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(120,170,220,0.4)' }} />
+                  <input
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { setSubmittedUserSearch(userSearch); setUserPage(1); } }}
+                    placeholder="Enter full email address..."
+                    style={{ ...S.card, padding: '9px 12px 9px 32px', fontSize: 13, width: '100%', background: 'rgba(0,15,40,0.7)', color: '#E8F4FF', outline: 'none' }}
+                  />
+                </div>
+                <button onClick={() => { setSubmittedUserSearch(userSearch); setUserPage(1); }} style={{ ...S.btn, padding: '9px 14px', fontSize: 12, whiteSpace: 'nowrap' as const }}>Search</button>
               </div>
               <select value={userRoleFilter} onChange={(e) => { setUserRoleFilter(e.target.value); setUserPage(1); }} style={{ ...S.card, padding: '9px 14px', fontSize: 12, cursor: 'pointer', background: 'rgba(0,15,40,0.7)', color: '#E8F4FF', outline: 'none' }}>
                 <option value="all">All roles</option>
@@ -526,6 +542,8 @@ export default function SuperadminPage() {
                   <tbody>
                     {usersLoading ? (
                       <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: 'rgba(120,170,220,0.4)', padding: 40 }}>Loading…</td></tr>
+                    ) : !submittedUserSearch ? (
+                      <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: 'rgba(120,170,220,0.3)', padding: 40 }}>Enter an email address and press Search</td></tr>
                     ) : userList.length === 0 ? (
                       <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', color: 'rgba(120,170,220,0.3)', padding: 40 }}>No users found</td></tr>
                     ) : userList.map((u) => {

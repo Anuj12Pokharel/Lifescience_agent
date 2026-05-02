@@ -97,7 +97,14 @@ class Organization(models.Model):
         super().save(*args, **kwargs)
 
     def member_count(self):
-        return self.memberships.filter(is_active=True).count()
+        # Count users directly managed by this org's owner (primary relationship).
+        # Also include any OrgMembership records for orgs that use that model.
+        from django.db.models import Q
+        managed = self.owner.managed_users.filter(is_active=True).count()
+        membership = self.memberships.filter(is_active=True).exclude(
+            user=self.owner
+        ).count()
+        return managed if managed > 0 else membership
 
     def can_add_user(self):
         if self.plan.is_unlimited_users:
@@ -157,10 +164,20 @@ class OrgMembership(models.Model):
 
 class OrgAgentAccess(models.Model):
     """
-    Tracks which agents are enabled for an organization.
-    All agents are enabled by default (free tier).
-    Superadmin can disable any agent for any org at any time.
+    Subscription record: an org must have an active record here to access an agent.
+
+    How a record gets created (subscription_type):
+      - 'self'       → admin subscribed themselves via the catalog
+      - 'superadmin' → superadmin explicitly granted access to this org
+
+    is_enabled=False means access was revoked (superadmin can revoke at any time;
+    admin can also unsubscribe by deleting or disabling their own subscription).
+    Absence of a record = no access (opt-in model).
     """
+
+    class SubscriptionType(models.TextChoices):
+        SELF = "self", "Self Subscribed"
+        SUPERADMIN = "superadmin", "Superadmin Granted"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     org = models.ForeignKey(
@@ -174,7 +191,20 @@ class OrgAgentAccess(models.Model):
         related_name="org_accesses",
     )
     is_enabled = models.BooleanField(default=True)
-    enabled_at = models.DateTimeField(auto_now_add=True)
+    subscription_type = models.CharField(
+        max_length=20,
+        choices=SubscriptionType.choices,
+        default=SubscriptionType.SUPERADMIN,
+    )
+    subscribed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="org_agent_subscriptions",
+    )
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    # Kept for superadmin revoke audit trail
     disabled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -198,8 +228,8 @@ class OrgAgentAccess(models.Model):
         ]
 
     def __str__(self):
-        status = "enabled" if self.is_enabled else "disabled"
-        return f"{self.org} → {self.agent} [{status}]"
+        state = "enabled" if self.is_enabled else "disabled"
+        return f"{self.org} → {self.agent} [{state}]"
 
 
 class UserAgentPermission(models.Model):
@@ -270,6 +300,8 @@ class AgentSession(models.Model):
     tracker_creds = models.JSONField(default=dict, blank=True)
     messenger = models.CharField(max_length=50, blank=True)
     messenger_creds = models.JSONField(default=dict, blank=True)
+    crm = models.CharField(max_length=50, blank=True)
+    crm_creds = models.JSONField(default=dict, blank=True)
     default_channel = models.CharField(max_length=200, blank=True, null=True)
     # Project cache
     available_projects = models.JSONField(default=list, blank=True)
@@ -363,6 +395,9 @@ class OrgAgentConfig(models.Model):
     messenger = models.CharField(max_length=50, blank=True)
     messenger_creds = models.JSONField(default=dict, blank=True)
     default_channel = models.CharField(max_length=200, blank=True, null=True)
+    # CRM (GHL/HubSpot/etc.) cached state
+    crm = models.CharField(max_length=50, blank=True)
+    crm_creds = models.JSONField(default=dict, blank=True)
     # Any extra config n8n wants to store
     extra = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

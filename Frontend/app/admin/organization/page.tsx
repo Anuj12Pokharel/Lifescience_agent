@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { Building2, Users, Bot, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import DashboardLayout from '@/components/dashboard-layout';
-import { useMyOrg, useUpdateMyOrg, useOrgMembers, useAgentPermissions, useGrantAgentPermission, useRevokeAgentPermission } from '@/lib/hooks/use-organizations';
-import { useQuery } from '@tanstack/react-query';
-import { organizationsApi, type OrgMember, type AgentPermission } from '@/lib/api-client';
+import { useMyOrg, useUpdateMyOrg, useOrgMembers, useAgentPermissions, useGrantAgentPermission, useRevokeAgentPermission, useOrgAgents, useSubscribeAgent, useUnsubscribeAgent } from '@/lib/hooks/use-organizations';
+import { organizationsApi, type OrgMember, type AgentPermission, type OrgAgent } from '@/lib/api-client';
+import { Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,10 +30,16 @@ export default function AdminOrganizationPage() {
   const grantPerm = useGrantAgentPermission();
   const revokePerm = useRevokeAgentPermission();
 
-  const { data: agents = [] } = useQuery({
-    queryKey: ['org', 'agents'],
-    queryFn: organizationsApi.listAgents,
-  });
+  // All org agents — subscribed and available — from single endpoint
+  const { data: allOrgAgents = [], isLoading: subscribedLoading } = useOrgAgents();
+  const subscribeMutation = useSubscribeAgent();
+  const unsubscribeMutation = useUnsubscribeAgent();
+
+  const subscribedAgents = allOrgAgents.filter((a: OrgAgent) => a.is_subscribed);
+  const availableAgents  = allOrgAgents.filter((a: OrgAgent) => !a.is_subscribed);
+
+  // agents alias used by Grant Access dialog select
+  const agents = subscribedAgents;
 
   const [grantDialog, setGrantDialog] = useState(false);
   const [grantUserId, setGrantUserId] = useState('');
@@ -55,6 +61,9 @@ export default function AdminOrganizationPage() {
             </TabsTrigger>
             <TabsTrigger value="members" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Users className="h-4 w-4 mr-2" /> Members
+            </TabsTrigger>
+            <TabsTrigger value="agents" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <Bot className="h-4 w-4 mr-2" /> Subscribed Agents
             </TabsTrigger>
             <TabsTrigger value="permissions" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
               <Bot className="h-4 w-4 mr-2" /> Agent Permissions
@@ -204,6 +213,163 @@ export default function AdminOrganizationPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          </TabsContent>
+
+          {/* Subscribed Agents */}
+          <TabsContent value="agents" className="mt-6">
+            <div className="space-y-6">
+              {/* Currently subscribed */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-foreground">Subscribed Agents</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Agents your organization currently has access to.</p>
+                  </div>
+                  <Badge variant="outline" className="border-primary/30 text-primary bg-primary/5">{subscribedAgents.length} active</Badge>
+                </div>
+                <div className="rounded-xl border border-border/40 bg-card/20 overflow-hidden backdrop-blur-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent border-border/40">
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Agent</TableHead>
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Type</TableHead>
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Source</TableHead>
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Status</TableHead>
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Users</TableHead>
+                        <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {subscribedLoading ? (
+                        Array(3).fill(0).map((_, i) => (
+                          <TableRow key={i} className="border-border/20">
+                            <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                            <TableCell><div className="h-5 w-20 bg-muted animate-pulse rounded-full" /></TableCell>
+                            <TableCell><div className="h-5 w-20 bg-muted animate-pulse rounded-full" /></TableCell>
+                            <TableCell><div className="h-5 w-16 bg-muted animate-pulse rounded-full" /></TableCell>
+                            <TableCell><div className="h-4 w-10 bg-muted animate-pulse rounded" /></TableCell>
+                            <TableCell><div className="h-8 w-20 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : subscribedAgents.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                            <div className="flex flex-col items-center gap-2">
+                              <Bot className="h-8 w-8 opacity-20" />
+                              <p>No agents subscribed yet</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        subscribedAgents.map((a: OrgAgent) => {
+                          const isSuperadminGrant = a.subscription_type === 'superadmin';
+                          return (
+                            <TableRow key={a.id} className="border-border/20 hover:bg-white/5">
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Bot className="h-4 w-4 text-primary" />
+                                  <div>
+                                    <div className="font-medium text-foreground text-sm">{a.name}</div>
+                                    {a.subtitle && <div className="text-xs text-muted-foreground">{a.subtitle}</div>}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="border-border/40 text-muted-foreground text-xs">{a.agent_type}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {isSuperadminGrant ? (
+                                  <Badge variant="outline" className="border-violet-500/30 text-violet-400 bg-violet-500/10 text-xs">Superadmin</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-sky-500/30 text-sky-400 bg-sky-500/10 text-xs">Self</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {a.is_blocked_by_superadmin ? (
+                                  <Badge variant="outline" className="border-rose-500/30 text-rose-500 bg-rose-500/10 text-xs">Blocked</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10 text-xs">Active</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{a.users_with_access}</TableCell>
+                              <TableCell className="text-right">
+                                {isSuperadminGrant ? (
+                                  <span className="text-xs text-muted-foreground italic">Managed by superadmin</span>
+                                ) : (
+                                  <Button
+                                    variant="ghost" size="sm"
+                                    className="h-7 px-3 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs font-semibold"
+                                    disabled={unsubscribeMutation.isPending}
+                                    onClick={() => unsubscribeMutation.mutate(a.id)}
+                                  >
+                                    {unsubscribeMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                                    Unsubscribe
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Available to subscribe */}
+              {availableAgents.length > 0 && (
+                <div>
+                  <div className="mb-3">
+                    <h3 className="font-semibold text-foreground">Available Agents</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Subscribe your org to gain access to these agents.</p>
+                  </div>
+                  <div className="rounded-xl border border-border/40 bg-card/20 overflow-hidden backdrop-blur-sm">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow className="hover:bg-transparent border-border/40">
+                          <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Agent</TableHead>
+                          <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground">Type</TableHead>
+                          <TableHead className="font-bold tracking-wider text-xs uppercase text-muted-foreground text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {availableAgents.map((a: OrgAgent) => (
+                          <TableRow key={a.id} className="border-border/20 hover:bg-white/5">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Bot className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <div className="font-medium text-foreground text-sm">{a.name}</div>
+                                  {a.subtitle && <div className="text-xs text-muted-foreground">{a.subtitle}</div>}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="border-border/40 text-muted-foreground text-xs">{a.agent_type}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {a.can_subscribe === false ? (
+                                <span className="text-xs text-muted-foreground italic">Plan limit reached</span>
+                              ) : (
+                              <Button
+                                size="sm"
+                                className="h-7 px-3 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 text-xs font-semibold"
+                                disabled={subscribeMutation.isPending}
+                                onClick={() => subscribeMutation.mutate(a.id)}
+                              >
+                                {subscribeMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                                Subscribe
+                              </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
