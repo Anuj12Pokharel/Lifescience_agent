@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.lifescienceaiagents.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://backend.lifescienceaiagents.com';
 
 export const api = axios.create({
   baseURL: BASE_URL,

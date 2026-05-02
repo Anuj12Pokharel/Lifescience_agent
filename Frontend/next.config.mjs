@@ -12,7 +12,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'api.lifescienceaiagents.com',
+        hostname: 'backend.lifescienceaiagents.com',
       },
     ],
   },

@@ -30,7 +30,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build args for environment variables baked at build time
-ARG NEXT_PUBLIC_API_URL=https://api.lifescienceaiagents.com
+ARG NEXT_PUBLIC_API_URL=https://backend.lifescienceaiagents.com
 ARG NEXT_PUBLIC_SPOKE_ID=spoke-a
 ARG NEXT_PUBLIC_N8N_WORKER_URL=http://localhost:5679
 
