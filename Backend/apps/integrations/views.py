@@ -16,6 +16,13 @@ from apps.integrations.serializers import (
 from apps.organizations.permissions import IsOrgOwner
 
 
+# ── Gmail OAuth Constants ──────────────────────────────────────────────────
+GMAIL_AUTH_URL    = "https://accounts.google.com/o/oauth2/v2/auth"
+GMAIL_TOKEN_URL   = "https://oauth2.googleapis.com/token"
+GMAIL_PROFILE_URL = "https://www.googleapis.com/gmail/v1/users/me/profile"
+GMAIL_SCOPES      = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email"
+
+
 def _ok(data=None, message="", status_code=status.HTTP_200_OK):
     body = {"success": True}
     if message:
