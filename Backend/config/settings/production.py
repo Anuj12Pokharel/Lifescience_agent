@@ -8,7 +8,7 @@ DEBUG = False
 # ── Security headers ──────────────────────────────────────────────────────────
 
 # HTTPS/HSTS
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31536000          # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
