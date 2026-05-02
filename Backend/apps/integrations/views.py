@@ -464,6 +464,9 @@ class GmailConnectView(APIView):
 
         client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         redirect_uri = request.build_absolute_uri("/api/v1/integrations/gmail/callback/")
+        
+        # DEBUG: Log the redirect URI to container logs
+        print(f"DEBUG: Gmail OAuth redirect_uri: {redirect_uri}")
 
         params = {
             "client_id": client_id,
