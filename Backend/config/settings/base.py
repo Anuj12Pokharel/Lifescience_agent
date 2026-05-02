@@ -298,6 +298,18 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60     # 25 minutes soft limit
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# ── Celery Beat: scheduled tasks ──────────────────────────────────────────────
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    # Refresh Gmail OAuth tokens every 30 minutes (tokens expire in ~1 hour).
+    # This keeps admin Gmail connections permanently alive.
+    "refresh-gmail-tokens": {
+        "task": "integrations.refresh_gmail_tokens",
+        "schedule": crontab(minute="*/30"),   # every 30 minutes
+    },
+}
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 LOGGING = {
