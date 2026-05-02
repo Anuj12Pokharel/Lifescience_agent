@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Analytics } from '@vercel/analytics/next'
+
 import { AuthProvider } from '@/lib/auth-context'
 import { ReactQueryProvider } from '@/lib/query-client'
 import { Toaster } from '@/components/ui/sonner'
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://life-science-ai.vercel.app'),
+  metadataBase: new URL('https://ai.lifescienceaiagents.com'),
   alternates: {
     canonical: '/',
     languages: {
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://life-science-ai.vercel.app',
+    url: 'https://ai.lifescienceaiagents.com',
     title: 'Life Science AI - Advanced AI for Research & Lab Management',
     description: 'Intelligent life science platform with AI-powered research assistance, lab booking, and inquiry management. Streamline your scientific workflow with specialised AI agents.',
     siteName: 'Life Science AI',
@@ -126,7 +126,7 @@ export default function RootLayout({
             <Toaster position="top-right" richColors />
           </AuthProvider>
         </ReactQueryProvider>
-        <Analytics />
+
       </body>
     </html>
   )
