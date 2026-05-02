@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsSuperAdmin
 from apps.agents.execution import execute_agent
 from apps.agents.models import Agent, AgentUsageLog, UserAgentAccess
+from apps.agents.usage_views import _check_limit_exceeded
 from apps.agents.serializers import (
     AgentListSerializer,
     AgentSerializer,
@@ -43,12 +44,15 @@ def _user_has_agent_access(user, agent) -> bool:
     Returns True if the user is allowed to execute this agent.
 
     Access hierarchy:
-      Superadmin      → always yes
-      Admin (owner)   → always yes (they manage the org)
-      Regular user    → needs one of:
-                          a) Direct UserAgentAccess record (superadmin-granted)
-                          b) AgentGroupMembership where group has this agent (superadmin-managed)
-                          c) UserAgentPermission granted by their org admin
+      Superadmin    → always yes
+      Admin (owner) → yes only if their org has an active OrgAgentAccess record
+                      (either self-subscribed or superadmin-granted)
+      Regular user  → yes if ANY of:
+                        a) Direct UserAgentAccess (superadmin-granted)
+                        b) AgentGroupMembership → AgentGroupAccess
+                        c) UserAgentPermission granted by their org admin
+                        d) Their org has an active OrgAgentAccess subscription
+                           (all org members inherit access automatically)
     """
     from apps.accounts.models import CustomUser
 
@@ -59,8 +63,8 @@ def _user_has_agent_access(user, agent) -> bool:
         from apps.organizations.models import OrgAgentAccess
         try:
             org = user.owned_organization
-            return not OrgAgentAccess.objects.filter(
-                org=org, agent=agent, is_enabled=False
+            return OrgAgentAccess.objects.filter(
+                org=org, agent=agent, is_enabled=True
             ).exists()
         except Exception:
             return False
@@ -75,7 +79,7 @@ def _user_has_agent_access(user, agent) -> bool:
     ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).exists():
         return True
 
-    # b) Group-based access (AgentGroupMembership + AgentGroupAccess)
+    # b) Group-based access — only valid if the group creator's org is still subscribed
     from apps.agents.group_models import AgentGroupMembership
     if AgentGroupMembership.objects.filter(
         user=user,
@@ -83,6 +87,9 @@ def _user_has_agent_access(user, agent) -> bool:
         group__is_active=True,
         group__agent_accesses__agent=agent,
         group__agent_accesses__is_active=True,
+        # The org that owns this group must have an active subscription
+        group__created_by__owned_organization__agent_accesses__agent=agent,
+        group__created_by__owned_organization__agent_accesses__is_enabled=True,
     ).exists():
         return True
 
@@ -93,6 +100,19 @@ def _user_has_agent_access(user, agent) -> bool:
             user=user,
             agent=agent,
             is_active=True,
+        ).exists():
+            return True
+    except Exception:
+        pass
+
+    # d) Org-level subscription — all members of a subscribed org get access
+    try:
+        from apps.organizations.models import OrgAgentAccess, OrgMembership
+        org_id = OrgMembership.objects.filter(
+            user=user, is_active=True
+        ).values_list("org_id", flat=True).first()
+        if org_id and OrgAgentAccess.objects.filter(
+            org_id=org_id, agent=agent, is_enabled=True
         ).exists():
             return True
     except Exception:
@@ -421,6 +441,20 @@ class AgentExecuteView(APIView):
         if not _user_has_agent_access(request.user, agent):
             raise PermissionDenied("You do not have access to this agent.")
 
+        # Block if user has exceeded their time limit for this agent
+        limit_min, used_min, exceeded = _check_limit_exceeded(request.user, agent)
+        if exceeded:
+            return Response(
+                {
+                    "success": False,
+                    "error": f"You have reached your {limit_min}-minute time limit for {agent.name}. Please contact your administrator.",
+                    "limit_exceeded": True,
+                    "limit_minutes": limit_min,
+                    "used_minutes": round(used_min, 1),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         message = request.data.get("message", "").strip()
         if not message:
             return Response(
@@ -453,7 +487,14 @@ class AgentExecuteView(APIView):
         if not result["success"]:
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
-        raw = result["data"] if isinstance(result.get("data"), dict) else {}
+        _data = result.get("data")
+        if isinstance(_data, dict):
+            raw = _data
+        elif isinstance(_data, list) and _data:
+            raw = _data[0]
+        else:
+            raw = {}
+
         frontend_data = {
             "reply": raw.get("reply", ""),
             "session_id": raw.get("session_id", ""),
@@ -462,6 +503,106 @@ class AgentExecuteView(APIView):
             "timestamp": raw.get("timestamp"),
         }
         return _success(data=frontend_data, message="Agent response received.")
+
+
+class AgentVoiceView(APIView):
+    """
+    POST /api/v1/agents/<slug>/voice/
+
+    Accepts an audio file, transcribes via ElevenLabs STT, runs the agent,
+    converts reply to speech via ElevenLabs TTS, and returns both text + audio URL.
+
+    Multipart form fields:
+      - audio      (file, required)  — recorded audio (webm, mp4, wav, mp3, etc.)
+      - sessionId  (str, optional)
+      - channel    (str, optional, defaults to "voice")
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, slug: str) -> Response:
+        from apps.agents.elevenlabs import speech_to_text, text_to_speech
+        from django.conf import settings as django_settings
+        import os
+
+        agent = _get_agent_or_404(slug)
+
+        if not agent.is_active:
+            return Response(
+                {"success": False, "error": "This agent is currently unavailable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not _user_has_agent_access(request.user, agent):
+            raise PermissionDenied("You do not have access to this agent.")
+
+        audio_file = request.FILES.get("audio")
+        if not audio_file:
+            return Response(
+                {"success": False, "error": "audio file is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Step 1: Speech → Text
+        try:
+            transcript = speech_to_text(audio_file)
+        except Exception as e:
+            return Response(
+                {"success": False, "error": f"Speech-to-text failed: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        if not transcript:
+            return Response(
+                {"success": False, "error": "Could not transcribe audio. Please try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Step 2: Run agent with transcript (same as text execute)
+        extra: dict = {"channel": request.data.get("channel", "voice")}
+        if request.data.get("sessionId"):
+            extra["sessionId"] = request.data["sessionId"]
+
+        result = execute_agent(
+            user=request.user,
+            agent=agent,
+            message=transcript,
+            extra=extra,
+        )
+
+        _log_action(request.user, agent, "voice_execute", request)
+
+        if not result["success"]:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        _data = result.get("data")
+        if isinstance(_data, dict):
+            raw = _data
+        elif isinstance(_data, list) and _data:
+            raw = _data[0]
+        else:
+            raw = {}
+        reply_text = raw.get("reply", "")
+
+        # Step 3: Text → Speech
+        audio_url = None
+        if reply_text:
+            try:
+                media_path = text_to_speech(reply_text)
+                backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+                audio_url = f"{backend_url}/media/{media_path}"
+            except Exception:
+                pass  # Degrade gracefully — return text even if TTS fails
+
+        frontend_data = {
+            "reply": reply_text,
+            "audio_url": audio_url,
+            "transcript": transcript,
+            "session_id": raw.get("session_id", ""),
+            "intent": raw.get("intent"),
+            "log_id": raw.get("log_id"),
+            "timestamp": raw.get("timestamp"),
+        }
+        return _success(data=frontend_data, message="Voice response received.")
 
 
 class MyAgentsView(APIView):

@@ -85,13 +85,36 @@ export interface LoginResponse {
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: async (data: { email: string; password: string; password_confirm: string }) => {
-    const res = await api.post('/api/v1/auth/register/', data);
+  registerAdmin: async (data: { email: string; password: string; password_confirm: string; organization_name: string }) => {
+    const res = await api.post('/api/v1/auth/register/admin/', data);
     return res.data;
   },
 
-  registerAdmin: async (data: { email: string; password: string; password_confirm: string; organization_name: string }) => {
-    const res = await api.post('/api/v1/auth/register/admin/', data);
+  // ── Invite-link flow ───────────────────────────────────────────────────────
+  validateInviteToken: async (token: string): Promise<{ email: string; invited_by: string; expires_at: string }> => {
+    const res = await api.get(`/api/v1/auth/invite/validate/?token=${token}`);
+    return res.data?.data ?? res.data;
+  },
+
+  completeInvite: async (data: {
+    token: string;
+    first_name: string;
+    last_name: string;
+    phone?: string;
+    password: string;
+    password_confirm: string;
+  }) => {
+    const res = await api.post('/api/v1/auth/invite/complete/', data);
+    return res.data;
+  },
+
+  verifyOTP: async (data: { email: string; otp_code: string }) => {
+    const res = await api.post('/api/v1/auth/verify-otp/', data);
+    return res.data;
+  },
+
+  resendOTP: async (data: { email: string }) => {
+    const res = await api.post('/api/v1/auth/resend-otp/', data);
     return res.data;
   },
 
@@ -237,7 +260,7 @@ export const usersApi = {
     return res.data;
   },
 
-  invite: async (data: { email: string; password?: string; password_confirm?: string; managed_by_id?: string }) => {
+  invite: async (data: { email: string; managed_by_id?: string | null }) => {
     const res = await api.post('/api/v1/users/invite/', data);
     return res.data;
   },
@@ -634,6 +657,10 @@ export interface OrgAgent {
   is_blocked_by_superadmin: boolean;
   integration_connected: boolean;
   users_with_access: number;
+  // subscription fields (present on GET /organizations/me/agents/)
+  is_subscribed?: boolean;
+  subscription_type?: 'self' | 'superadmin' | null;
+  can_subscribe?: boolean;
 }
 
 export interface AgentPermission {
@@ -661,6 +688,11 @@ export interface OrgAgentAccess {
 export const organizationsApi = {
   getMyOrg: async (): Promise<Organization> => {
     const res = await api.get('/api/v1/organizations/me/');
+    return res.data?.data ?? res.data;
+  },
+
+  getMyOrgStats: async (): Promise<{ member_count: number; group_count: number; subscribed_agent_count: number }> => {
+    const res = await api.get('/api/v1/organizations/me/stats/');
     return res.data?.data ?? res.data;
   },
 
@@ -717,9 +749,20 @@ export const organizationsApi = {
   },
 
   // Superadmin: toggle agent for org
-  toggleOrgAgent: async (orgId: string, agentId: string, data: { is_enabled: boolean }) => {
+  toggleOrgAgent: async (orgId: string, agentId: string, data: { is_enabled: boolean; notes?: string }) => {
     const res = await api.post(`/api/v1/organizations/${orgId}/agents/${agentId}/toggle/`, data);
     return res.data?.data ?? res.data;
+  },
+
+  // Admin: subscribe own org to an agent
+  subscribeAgent: async (agentId: string) => {
+    const res = await api.post(`/api/v1/organizations/me/agents/${agentId}/subscribe/`);
+    return res.data?.data ?? res.data;
+  },
+
+  // Admin: unsubscribe own org from an agent
+  unsubscribeAgent: async (agentId: string) => {
+    await api.delete(`/api/v1/organizations/me/agents/${agentId}/subscribe/`);
   },
 };
 

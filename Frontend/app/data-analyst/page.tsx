@@ -7,8 +7,6 @@ import {
   ChevronLeft, MessageSquare, Loader2, Paperclip, X, BarChart3, TrendingUp,
   PieChart, Activity, Grid, Maximize2, Columns, LayoutList, Layers, FileText, Image as ImageIcon
 } from "lucide-react";
-import { AgentAccessCheck } from "@/components/agent-access-check";
-
 import {
   ResponsiveContainer, BarChart as RechartsBarChart, LineChart as RechartsLineChart, PieChart as RechartsPieChart, 
   ScatterChart as RechartsScatterChart, Bar, Line, Pie, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell
@@ -249,7 +247,7 @@ export default function DataAnalystPage() {
         formData.append("chartType", vizTypeVal);
       }
 
-      const res = await fetch("https://www.lifescienceaiagents.com/webhook/a3e148dc-9bf5-46f2-8807-87b7cf66ee4f", {
+      const res = await fetch("https://n8n.lifescienceaiagents.com/webhook/a3e148dc-9bf5-46f2-8807-87b7cf66ee4f", {
         method: "POST",
         body: formData
       });
@@ -336,11 +334,9 @@ export default function DataAnalystPage() {
   };
 
   return (
-    <AgentAccessCheck agentSlug="data-analyst">
-      {(hasAccess, isLoading) => (
-        <>
-          <style>{GLOBAL_CSS}</style>
-          <Background />
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <Background />
       <div className="chat-root" style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         
         {/* HEADER */}
@@ -547,7 +543,5 @@ export default function DataAnalystPage() {
         )}
       </div>
     </>
-      )}
-    </AgentAccessCheck>
   );
 }

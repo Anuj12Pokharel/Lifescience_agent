@@ -81,11 +81,35 @@ export function useAllOrgs() {
 export function useToggleOrgAgent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orgId, agentId, data }: { orgId: string; agentId: string; data: { is_enabled: boolean } }) =>
+    mutationFn: ({ orgId, agentId, data }: { orgId: string; agentId: string; data: { is_enabled: boolean; notes?: string } }) =>
       organizationsApi.toggleOrgAgent(orgId, agentId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.allOrgs });
       toast.success('Agent status updated');
     },
+  });
+}
+
+export function useSubscribeAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => organizationsApi.subscribeAgent(agentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.agents });
+      toast.success('Subscribed to agent');
+    },
+    onError: () => toast.error('Failed to subscribe'),
+  });
+}
+
+export function useUnsubscribeAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => organizationsApi.unsubscribeAgent(agentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.agents });
+      toast.success('Unsubscribed from agent');
+    },
+    onError: () => toast.error('Failed to unsubscribe'),
   });
 }

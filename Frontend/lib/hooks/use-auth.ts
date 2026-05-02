@@ -4,14 +4,7 @@ import { toast } from 'sonner';
 import { authApi } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 
-// ─── Register ──────────────────────────────────────────────────────────────────
-
-export function useRegister() {
-  return useMutation({
-    mutationFn: authApi.register,
-    onError: () => {},           // callers handle errors via mutation.error
-  });
-}
+// ─── Register (admin self-registration only) ───────────────────────────────────
 
 export function useRegisterAdmin() {
   return useMutation({
@@ -123,5 +116,34 @@ export function useChangePassword() {
       if (newToken) updateToken(newToken);
       toast.success('Password changed successfully');
     },
+  });
+}
+
+// ─── Invite-link flow ──────────────────────────────────────────────────────────
+
+export function useCompleteInvite() {
+  return useMutation({
+    mutationFn: authApi.completeInvite,
+    onError: () => {},
+  });
+}
+
+export function useVerifyOTP() {
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: authApi.verifyOTP,
+    onSuccess: () => {
+      toast.success('Email verified! You can now sign in.');
+      setTimeout(() => router.push('/login'), 1800);
+    },
+    onError: () => {},
+  });
+}
+
+export function useResendOTP() {
+  return useMutation({
+    mutationFn: authApi.resendOTP,
+    onSuccess: () => toast.success('New verification code sent.'),
   });
 }

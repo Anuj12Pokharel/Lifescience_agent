@@ -28,13 +28,16 @@ from apps.accounts.serializers import (
     AssignCompanySerializer,
     AssignManagerSerializer,
     ChangePasswordSerializer,
+    CompleteInviteSerializer,
     ForgotPasswordSerializer,
     LoginSerializer,
     LogoutSerializer,
     RegisterSerializer,
     ResetPasswordSerializer,
+    SendInviteSerializer,
     UserSerializer,
     VerifyEmailSerializer,
+    VerifyOTPSerializer,
     email_verification_token,
 )
 from apps.accounts.permissions import IsAdminOrSuperAdmin, IsSuperAdmin
@@ -128,29 +131,15 @@ def _check_admin_scope(requester: CustomUser, target: CustomUser) -> None:
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 class RegisterView(APIView):
+    """Kept for admin self-registration email verification dispatch only. Direct user signup is disabled."""
     permission_classes = [AllowAny]
 
-    @extend_schema(
-        tags=["Auth"],
-        summary="Register a new user",
-        request=RegisterSerializer,
-        responses={
-            201: OpenApiResponse(description="Registration successful. Verification email sent."),
-            422: OpenApiResponse(description="Validation error"),
-        },
-    )
     def post(self, request: Request) -> Response:
-        serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user: CustomUser = serializer.save()
-        self._dispatch_verification_email(user)
-        return _success(
-            data={"id": str(user.id), "email": user.email},
-            message=(
-                "Registration successful. "
-                "A verification email has been sent to your address."
-            ),
-            status_code=status.HTTP_201_CREATED,
+        return Response(
+            {"success": False, "error": {"code": "REGISTRATION_DISABLED",
+             "message": "Self-registration is disabled. Please use an invite link sent by your administrator.",
+             "details": {}}},
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     @staticmethod
@@ -621,43 +610,213 @@ class AdminInviteUserView(APIView):
     """
     POST /api/v1/users/invite/
 
-    Admin or Superadmin creates a new user.
-    - Admin: created user automatically has managed_by = request.user
-    - Superadmin: can optionally pass managed_by_id to assign to a specific admin
-    Sends an invite email containing the login credentials and login URL.
+    Admin or Superadmin sends an invite email to a given address.
+    No user is created yet — the invited person completes signup via the link.
+    - Admin inviting: managed_by = admin. Invited role = USER.
+    - Superadmin inviting: can specify managed_by_id. Invited role = USER by default.
     """
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
 
     def post(self, request: Request) -> Response:
-        serializer = AdminInviteUserSerializer(
-            data=request.data, context={"request": request}
-        )
+        from django.utils import timezone as tz
+        from apps.accounts.models import InviteToken
+
+        serializer = SendInviteSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
-        # Store raw password before hashing
-        raw_password = serializer.validated_data["password"]
-        user: CustomUser = serializer.create(serializer.validated_data)
+        email: str = serializer.validated_data["email"]
+        manager: CustomUser | None = serializer.validated_data["_manager"]
+
+        # Invalidate any prior unused invites for this email
+        InviteToken.objects.filter(email=email, is_used=False).update(is_used=True)
+
+        invite = InviteToken.objects.create(
+            email=email,
+            invited_role=CustomUser.Role.USER,
+            invited_by=request.user,
+            managed_by=manager,
+            expires_at=tz.now() + tz.timedelta(hours=72),
+        )
+
+        invite_url = f"{_frontend_url()}/invite/{invite.token}"
+        app_name = getattr(settings, "APP_NAME", "Life Science AI")
 
         try:
             _send_html_email(
-                subject=f"You've been invited to {getattr(settings, 'APP_NAME', 'Neural Codex')}",
-                template="emails/invite_user.html",
+                subject=f"You've been invited to {app_name}",
+                template="emails/invite_link.html",
                 context={
-                    "email": user.email,
-                    "password": raw_password,
+                    "email": email,
                     "invited_by": request.user.email,
-                    "login_url": f"{_frontend_url()}/login",
+                    "invite_url": invite_url,
+                    "expires_hours": 72,
+                },
+                recipient=email,
+            )
+        except Exception:
+            pass
+
+        return _success(
+            data={"email": email, "invite_token": str(invite.token)},
+            message=f"Invite sent to '{email}'. Link expires in 72 hours.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+
+class ValidateInviteTokenView(APIView):
+    """
+    GET /api/v1/auth/invite/validate/?token=<uuid>
+
+    Returns the invite details (email, invited_by) if the token is valid.
+    Used by the frontend signup form to pre-fill email.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request) -> Response:
+        from apps.accounts.models import InviteToken
+
+        token = request.query_params.get("token", "").strip()
+        if not token:
+            return Response(
+                {"success": False, "error": {"message": "token is required.", "details": {}}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            invite = InviteToken.objects.select_related("invited_by").get(token=token)
+        except (InviteToken.DoesNotExist, Exception):
+            return Response(
+                {"success": False, "error": {"message": "Invalid invite link.", "details": {}}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if invite.is_used:
+            return Response(
+                {"success": False, "error": {"message": "This invite link has already been used.", "details": {}}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if invite.is_expired:
+            return Response(
+                {"success": False, "error": {"message": "This invite link has expired.", "details": {}}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return _success(data={
+            "email": invite.email,
+            "invited_by": invite.invited_by.email,
+            "expires_at": invite.expires_at.isoformat(),
+        })
+
+
+class CompleteInviteView(APIView):
+    """
+    POST /api/v1/auth/invite/complete/
+
+    Accepts the invite token + user form data, creates the user, sends an OTP.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        from django.utils import timezone as tz
+        from apps.accounts.models import OTPCode
+
+        serializer = CompleteInviteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user: CustomUser = serializer.save()
+
+        # Generate and store OTP
+        code = OTPCode.generate_code()
+        OTPCode.objects.create(
+            user=user,
+            code=code,
+            expires_at=tz.now() + tz.timedelta(minutes=15),
+        )
+
+        try:
+            _send_html_email(
+                subject="Your verification code",
+                template="emails/otp_verification.html",
+                context={
+                    "otp_code": code,
+                    "email": user.email,
+                    "expires_minutes": 15,
                 },
                 recipient=user.email,
             )
         except Exception:
-            pass  # don't fail invite if email fails
+            pass
 
         return _success(
-            data=AdminUserDetailSerializer(user).data,
-            message=f"User '{user.email}' invited successfully.",
+            data={"email": user.email},
+            message="Account created. A 6-digit verification code has been sent to your email.",
             status_code=status.HTTP_201_CREATED,
         )
+
+
+class VerifyOTPView(APIView):
+    """
+    POST /api/v1/auth/verify-otp/
+
+    Verifies the OTP. On success the user is marked as verified and can log in.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        serializer = VerifyOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return _success(message="Email verified successfully. You can now sign in.")
+
+
+class ResendOTPView(APIView):
+    """
+    POST /api/v1/auth/resend-otp/
+
+    Generates a fresh OTP and resends it to the user's email.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        from django.utils import timezone as tz
+        from apps.accounts.models import OTPCode
+
+        email = (request.data.get("email") or "").lower().strip()
+        if not email:
+            return Response(
+                {"success": False, "error": {"message": "email is required.", "details": {}}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = CustomUser.objects.get(email=email, is_active=True)
+        except CustomUser.DoesNotExist:
+            # Silent — don't reveal account existence
+            return _success(message="If an unverified account exists, a new code has been sent.")
+
+        if user.is_verified:
+            return _success(message="This account is already verified.")
+
+        # Invalidate old OTPs
+        OTPCode.objects.filter(user=user, is_used=False).update(is_used=True)
+
+        code = OTPCode.generate_code()
+        OTPCode.objects.create(
+            user=user,
+            code=code,
+            expires_at=tz.now() + tz.timedelta(minutes=15),
+        )
+
+        try:
+            _send_html_email(
+                subject="Your new verification code",
+                template="emails/otp_verification.html",
+                context={"otp_code": code, "email": user.email, "expires_minutes": 15},
+                recipient=user.email,
+            )
+        except Exception:
+            pass
+
+        return _success(message="A new verification code has been sent to your email.")
 
 
 class MyGrantedAgentsView(APIView):

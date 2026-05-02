@@ -1,3 +1,4 @@
+import random
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -110,6 +111,8 @@ class UserProfile(models.Model):
         related_name="profile",
         primary_key=True,
     )
+    first_name = models.CharField(max_length=100, blank=True)
+    last_name = models.CharField(max_length=100, blank=True)
     avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     phone = models.CharField(max_length=20, blank=True)
@@ -124,3 +127,84 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"Profile({self.user.email})"
+
+
+class InviteToken(models.Model):
+    """
+    Stores a pending invitation. The invited user does not exist yet —
+    they are created only after they complete the signup form.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    email = models.EmailField(db_index=True)
+    # Role to be assigned when user completes signup
+    invited_role = models.CharField(
+        max_length=20,
+        choices=CustomUser.Role.choices,
+        default=CustomUser.Role.USER,
+    )
+    invited_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="sent_invites",
+    )
+    # When superadmin invites an admin, managed_by is None.
+    # When admin invites a user, managed_by = that admin.
+    managed_by = models.ForeignKey(
+        CustomUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="invite_managed_users",
+    )
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "accounts_invite_token"
+        verbose_name = "Invite Token"
+        verbose_name_plural = "Invite Tokens"
+
+    def __str__(self):
+        return f"Invite({self.email})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        return not self.is_used and not self.is_expired
+
+
+class OTPCode(models.Model):
+    """
+    One-time password sent to verify the user's email after completing signup via invite.
+    """
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="otp_codes",
+    )
+    code = models.CharField(max_length=6)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "accounts_otp_code"
+        verbose_name = "OTP Code"
+        verbose_name_plural = "OTP Codes"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"OTP({self.user.email}, used={self.is_used})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    @staticmethod
+    def generate_code() -> str:
+        return str(random.randint(100000, 999999))
