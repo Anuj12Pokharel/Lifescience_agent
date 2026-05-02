@@ -47,7 +47,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     "connect_timeout": 10,
-    "sslmode": "require",
+    "sslmode": "prefer",
 }
 
 # ── Email ─────────────────────────────────────────────────────────────────────
