@@ -8,8 +8,6 @@
 set -e
 
 echo "Waiting for database..."
-# Simple loop to wait for the database port to be open
-# We use python to check the connection since nc/wget might not be available
 python << END
 import socket
 import time
@@ -38,6 +36,12 @@ python manage.py collectstatic --noinput
 if [ "$DJANGO_SUPERUSER_USERNAME" ] && [ "$DJANGO_SUPERUSER_PASSWORD" ] && [ "$DJANGO_SUPERUSER_EMAIL" ]; then
     echo "Creating superuser..."
     python manage.py createsuperuser --noinput || echo "Superuser already exists."
+fi
+
+# If a command is passed to the entrypoint, run it instead of Gunicorn
+if [ "$#" -gt 0 ]; then
+    echo "Running custom command: $@"
+    exec "$@"
 fi
 
 echo "Starting Gunicorn..."
