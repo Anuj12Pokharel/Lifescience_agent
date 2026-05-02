@@ -28,7 +28,7 @@ export async function GET(
 
     // Make internal API call to check access
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.lifescienceaiagents.com/api'}/api/v1/agents/${agentId}/access-check`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://backend.lifescienceaiagents.com'}/api/v1/agents/${agentId}/access-check`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

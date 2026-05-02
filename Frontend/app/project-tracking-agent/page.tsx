@@ -383,8 +383,7 @@ export default function ProjectTrackerPage() {
 
     try {
       const token = getAccessToken();
-      const base = (process.env.NEXT_PUBLIC_API_URL || "https://api.lifescienceaiagents.com").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/v1/agents/project-tracking-agent/execute/`, {
+      const res = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'https://backend.lifescienceaiagents.com').replace(/\/$/, '')}/api/v1/agents/project-tracking-agent/execute/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
