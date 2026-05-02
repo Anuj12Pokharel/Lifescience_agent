@@ -182,6 +182,7 @@ BACKEND_URL = config("BACKEND_URL", default="http://localhost:8000")
 FERNET_KEY = config("FERNET_KEY", default="")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
