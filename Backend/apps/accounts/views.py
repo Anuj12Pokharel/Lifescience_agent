@@ -642,19 +642,42 @@ class AdminInviteUserView(APIView):
         app_name = getattr(settings, "APP_NAME", "Life Science AI")
 
         try:
-            _send_html_email(
-                subject=f"You've been invited to {app_name}",
-                template="emails/invite_link.html",
-                context={
-                    "email": email,
-                    "invited_by": request.user.email,
-                    "invite_url": invite_url,
-                    "expires_hours": 72,
-                },
-                recipient=email,
-            )
+            # ── Prefer admin's connected Gmail over server SMTP ───────────────
+            from apps.integrations.gmail_sender import get_org_gmail_credential, send_via_gmail
+            from django.template.loader import render_to_string
+
+            gmail_cred = None
+            try:
+                admin_org = request.user.owned_organization
+                gmail_cred = get_org_gmail_credential(admin_org)
+            except Exception:
+                pass
+
+            email_ctx = {
+                "email": email,
+                "invited_by": request.user.email,
+                "invite_url": invite_url,
+                "expires_hours": 72,
+            }
+
+            if gmail_cred:
+                html_body = render_to_string("emails/invite_link.html", email_ctx)
+                send_via_gmail(
+                    credential=gmail_cred,
+                    to=email,
+                    subject=f"You've been invited to {app_name}",
+                    html_body=html_body,
+                )
+            else:
+                _send_html_email(
+                    subject=f"You've been invited to {app_name}",
+                    template="emails/invite_link.html",
+                    context=email_ctx,
+                    recipient=email,
+                )
         except Exception:
             pass
+
 
         return _success(
             data={"email": email, "invite_token": str(invite.token)},
