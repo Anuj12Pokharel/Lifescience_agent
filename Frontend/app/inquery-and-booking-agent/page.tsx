@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useAgentTimer } from "@/lib/hooks/use-agent-timer";
+import { useQuery } from "@tanstack/react-query";
+import { usageApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import {
   ArrowUp, PhoneOff, Mic, MicOff, MessageSquare, Phone,
   ChevronLeft, Loader2, AlertTriangle, X, CheckCircle2,
@@ -565,6 +569,18 @@ function BookingDialog({ open, onSubmit, onCancel }: { open:boolean; onSubmit:(d
    MAIN PAGE
 ══════════════════════════════════════════ */
 export default function ChatPage() {
+  const { user } = useAuth();
+
+  const { data: limitCheck, isLoading: limitLoading } = useQuery({
+    queryKey: ['limit-check', 'inquery-and-booking-agent'],
+    queryFn: () => usageApi.checkLimit('inquery-and-booking-agent'),
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
+
+  const isBlocked = limitCheck?.is_blocked === true;
+  useAgentTimer("inquery-and-booking-agent", !isBlocked);
+
   const [mode, setMode] = useState<Mode>("text");
   const [messages, setMessages] = useState<Msg[]>([{
     id:"0",sender:"ai",type:"text",time:nowTime(),
@@ -917,6 +933,22 @@ export default function ChatPage() {
     setVoiceBooking(false);
     setTimeout(()=>{ if(callActiveRef.current&&!isSpeakingRef.current) startListening(); },400);
   },[startListening]);
+
+  if (limitLoading) return null;
+
+  if (isBlocked) return (
+    <div style={{ minHeight:"100vh", background:"#05080f", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, padding:24, textAlign:"center", fontFamily:"sans-serif" }}>
+      <div style={{ fontSize:48 }}>⏱️</div>
+      <h2 style={{ fontSize:22, fontWeight:700, color:"#ff4d6d" }}>Time Limit Reached</h2>
+      <p style={{ color:"rgba(232,237,248,0.5)", maxWidth:360 }}>
+        You have used <strong style={{color:"#e8edf8"}}>{limitCheck?.used_minutes} min</strong> of your <strong style={{color:"#e8edf8"}}>{limitCheck?.limit_minutes} min</strong> limit for this agent.
+      </p>
+      <p style={{ color:"rgba(232,237,248,0.4)", fontSize:13 }}>Please contact your administrator to increase your limit.</p>
+      <a href="/dashboard" style={{ marginTop:8, padding:"10px 24px", background:"rgba(255,77,109,0.15)", border:"1px solid rgba(255,77,109,0.3)", borderRadius:10, color:"#ff4d6d", fontSize:14, fontWeight:600, textDecoration:"none" }}>
+        Back to Dashboard
+      </a>
+    </div>
+  );
 
   return (
     <>

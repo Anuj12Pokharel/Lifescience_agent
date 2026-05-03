@@ -33,9 +33,20 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ADMIN = "admin", "Admin"
         USER = "user", "User"
 
+    class ApprovalStatus(models.TextChoices):
+        PENDING  = "pending",  "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.USER)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.APPROVED,
+    )
+    rejection_reason = models.TextField(blank=True, default="")
     # Which admin manages this user. Null for superadmins, admins, and
     # self-registered users not yet assigned to an admin.
     managed_by = models.ForeignKey(

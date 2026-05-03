@@ -93,7 +93,7 @@ export function InviteUserDialog({ open, onOpenChange, isAdmin }: InviteUserDial
               </p>
             </div>
             <p className="text-xs text-muted-foreground/60">
-              The user will fill in their name, phone and password via the link, then verify their email with an OTP code.
+              The user will fill in their name, phone and password via the link, then sign in to access their agents.
             </p>
             <DialogFooter className="!mt-2">
               <Button onClick={handleClose} className="w-full">Done</Button>
@@ -158,7 +158,6 @@ export function InviteUserDialog({ open, onOpenChange, isAdmin }: InviteUserDial
               <ol className="list-decimal list-inside space-y-0.5 pl-1">
                 <li>Click the secure link in the email</li>
                 <li>Fill in their name, phone &amp; password</li>
-                <li>Verify via a 6-digit OTP code</li>
                 <li>Sign in to access their agents</li>
               </ol>
               {gmailStatus?.connected && (

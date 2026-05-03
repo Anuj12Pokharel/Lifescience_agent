@@ -1,7 +1,9 @@
 from django.urls import path
 
 from apps.accounts.views import (
+    AdminInviteListView,
     AdminRegisterView,
+    AdminResendInviteView,
     ChangePasswordView,
     CompleteInviteView,
     ForgotPasswordView,
@@ -10,6 +12,8 @@ from apps.accounts.views import (
     ResendOTPView,
     ResendVerificationView,
     ResetPasswordView,
+    SuperadminApproveAdminView,
+    SuperadminPendingAdminsView,
     TokenRefreshCookieView,
     ValidateInviteTokenView,
     VerifyEmailView,
@@ -19,18 +23,26 @@ from apps.accounts.views import (
 app_name = "accounts"
 
 urlpatterns = [
-    # ── Registration (admin self-registration only; users come via invite) ────
+    # ── Registration ──────────────────────────────────────────────────────────
     path("register/admin/", AdminRegisterView.as_view(), name="register-admin"),
+
+    # ── Superadmin: admin approval ────────────────────────────────────────────
+    path("superadmin/registrations/", SuperadminPendingAdminsView.as_view(), name="superadmin-registrations"),
+    path("superadmin/registrations/<uuid:admin_id>/decide/", SuperadminApproveAdminView.as_view(), name="superadmin-decide"),
+
+    # ── Admin: members / invite management ────────────────────────────────────
+    path("admin/members/", AdminInviteListView.as_view(), name="admin-members"),
+    path("admin/members/<uuid:invite_id>/resend/", AdminResendInviteView.as_view(), name="admin-resend-invite"),
 
     # ── Invite-link flow ──────────────────────────────────────────────────────
     path("invite/validate/", ValidateInviteTokenView.as_view(), name="invite-validate"),
     path("invite/complete/", CompleteInviteView.as_view(), name="invite-complete"),
 
-    # ── OTP verification ──────────────────────────────────────────────────────
+    # ── OTP verification (kept for backward compat) ───────────────────────────
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
     path("resend-otp/", ResendOTPView.as_view(), name="resend-otp"),
 
-    # ── Legacy email verification (kept for admin self-registration flow) ─────
+    # ── Email verification ────────────────────────────────────────────────────
     path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
     path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
 

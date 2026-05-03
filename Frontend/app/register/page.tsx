@@ -56,12 +56,24 @@ export default function RegisterPage() {
       <div className="auth-page">
         <style>{AUTH_STYLES}</style>
         <div className="auth-card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>✉️</div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#E8F4FF', marginBottom: '8px' }}>Check your email</h2>
-          <p style={{ color: 'rgba(120,170,220,0.7)', marginBottom: '24px', lineHeight: 1.6 }}>
-            We sent a verification link to <strong style={{ color: '#00D4FF' }}>{form.email}</strong>.
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,180,0,0.1)', border: '1px solid rgba(255,180,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 28 }}>⏳</div>
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#E8F4FF', marginBottom: '10px' }}>Registration Under Review</h2>
+          <p style={{ color: 'rgba(120,170,220,0.7)', marginBottom: '8px', lineHeight: 1.6 }}>
+            Your admin account for <strong style={{ color: '#00D4FF' }}>{form.email}</strong> has been submitted.
           </p>
-          <Link href="/login" style={{ color: '#00D4FF', fontWeight: 600, textDecoration: 'none' }}>Back to Login →</Link>
+          <p style={{ color: 'rgba(120,170,220,0.55)', marginBottom: '28px', lineHeight: 1.6, fontSize: 14 }}>
+            A superadmin will review and approve your registration. You will be notified by email once your account is activated.
+          </p>
+          <div style={{ background: 'rgba(255,180,0,0.06)', border: '1px solid rgba(255,180,0,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 28, textAlign: 'left' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,180,0,0.8)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What happens next?</div>
+            {['A superadmin reviews your organization details', 'You receive an approval or rejection email', 'Once approved, sign in with your credentials'].map((step, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(255,180,0,0.15)', border: '1px solid rgba(255,180,0,0.3)', fontSize: 10, fontWeight: 700, color: '#FFB400', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                <span style={{ fontSize: 13, color: 'rgba(120,170,220,0.7)' }}>{step}</span>
+              </div>
+            ))}
+          </div>
+          <Link href="/login" style={{ color: '#00D4FF', fontWeight: 600, textDecoration: 'none', fontSize: 14 }}>Back to Login →</Link>
         </div>
       </div>
     );

@@ -4,153 +4,181 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
-  <title>You've been invited – {{ app_name }}</title>
+  <title>{{ org_name }} has invited you – {{ app_name }}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#eef2f7;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
 
   <table width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="background-color:#f0f4f8;padding:40px 16px;">
+         style="background-color:#eef2f7;padding:44px 16px;">
     <tr>
       <td align="center">
 
         <table width="100%" cellpadding="0" cellspacing="0" border="0"
-               style="max-width:560px;background:#ffffff;border-radius:12px;
-                      box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden;">
+               style="max-width:580px;background:#ffffff;border-radius:16px;
+                      box-shadow:0 6px 32px rgba(0,0,0,0.10);overflow:hidden;">
 
-          <!-- Header -->
+          <!-- Header band -->
           <tr>
-            <td align="center"
-                style="background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);
-                       padding:36px 40px 32px;">
-              <div style="width:52px;height:52px;background:rgba(255,255,255,0.18);
-                          border-radius:14px;display:inline-flex;align-items:center;
-                          justify-content:center;margin-bottom:16px;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                        stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">
-                {{ app_name }}
-              </h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.75);font-size:13px;">
-                You have been invited to join the platform
-              </p>
+            <td style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+                       padding:0;">
+              <!-- Top accent line -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="height:4px;background:linear-gradient(90deg,#0ea5e9,#6366f1,#8b5cf6);"></td>
+                </tr>
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:40px 40px 36px;">
+                    <!-- Envelope icon -->
+                    <div style="width:60px;height:60px;background:rgba(14,165,233,0.15);
+                                border:1.5px solid rgba(14,165,233,0.35);border-radius:50%;
+                                display:inline-flex;align-items:center;justify-content:center;
+                                margin-bottom:20px;">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                           xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="4" width="20" height="16" rx="3"
+                              stroke="#38bdf8" stroke-width="1.8"/>
+                        <path d="M2 8l10 7 10-7" stroke="#38bdf8" stroke-width="1.8"
+                              stroke-linecap="round"/>
+                      </svg>
+                    </div>
+                    <h1 style="margin:0 0 6px;color:#f1f5f9;font-size:24px;font-weight:800;
+                               letter-spacing:-0.5px;">
+                      You're invited!
+                    </h1>
+                    <p style="margin:0;color:rgba(148,163,184,0.85);font-size:14px;">
+                      {{ org_name }} &nbsp;·&nbsp; {{ app_name }}
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
           <!-- Body -->
           <tr>
-            <td style="padding:40px 40px 32px;">
-              <h2 style="margin:0 0 12px;color:#111827;font-size:20px;font-weight:700;">
-                Welcome to {{ app_name }}!
-              </h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.7;">
-                <strong style="color:#111827;">{{ invited_by }}</strong> has invited you
-                to create your account on <strong style="color:#111827;">{{ app_name }}</strong>.
-                Click the button below to complete your profile and get started.
-              </p>
+            <td style="padding:40px 44px 32px;">
 
-              <!-- Info box -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+              <!-- Company invite statement -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="margin-bottom:28px;">
                 <tr>
-                  <td style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px 20px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td style="width:20px;vertical-align:top;padding-top:1px;">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10" stroke="#0284c7" stroke-width="2"/>
-                            <path d="M12 8v4m0 4h.01" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/>
-                          </svg>
-                        </td>
-                        <td style="padding-left:10px;color:#0369a1;font-size:13px;line-height:1.6;">
-                          Your email <strong>{{ email }}</strong> is pre-filled. You'll set your name, phone and password on the next page.
-                          This link expires in <strong>{{ expires_hours }} hours</strong>.
-                        </td>
-                      </tr>
-                    </table>
+                  <td style="background:#f0f9ff;border:1px solid #bae6fd;
+                              border-radius:12px;padding:22px 24px;">
+                    <p style="margin:0 0 4px;font-size:13px;color:#0369a1;
+                               font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">
+                      Invitation from
+                    </p>
+                    <p style="margin:0;font-size:22px;font-weight:800;color:#0f172a;
+                               letter-spacing:-0.4px;">
+                      {{ org_name }}
+                    </p>
+                    <p style="margin:8px 0 0;font-size:13px;color:#64748b;line-height:1.5;">
+                      Sent by <strong style="color:#0f172a;">{{ invited_by }}</strong>
+                    </p>
                   </td>
                 </tr>
               </table>
 
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <p style="margin:0 0 28px;color:#475569;font-size:15px;line-height:1.75;">
+                Hi there,<br/><br/>
+                <strong style="color:#0f172a;">{{ org_name }}</strong> has invited
+                <strong style="color:#0f172a;">{{ email }}</strong> to join
+                <strong style="color:#0f172a;">{{ app_name }}</strong>.
+                Click the button below to set up your account and get started.
+              </p>
+
+              <!-- CTA -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="margin-bottom:32px;">
                 <tr>
-                  <td align="center" style="padding:4px 0 28px;">
+                  <td align="center">
                     <a href="{{ invite_url }}"
-                       style="display:inline-block;background:linear-gradient(135deg,#0ea5e9,#6366f1);
-                              color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;
-                              padding:15px 40px;border-radius:10px;letter-spacing:0.2px;
-                              box-shadow:0 4px 16px rgba(14,165,233,0.35);">
-                      Complete Your Registration →
+                       style="display:inline-block;
+                              background:linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%);
+                              color:#ffffff;text-decoration:none;font-size:16px;
+                              font-weight:700;padding:16px 48px;border-radius:10px;
+                              letter-spacing:0.1px;
+                              box-shadow:0 6px 20px rgba(99,102,241,0.35);">
+                      Accept Invitation →
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">
-                Or copy this link into your browser:
+              <!-- Fallback link -->
+              <p style="margin:0 0 6px;color:#94a3b8;font-size:12px;text-align:center;">
+                Button not working? Copy and paste this link:
               </p>
-              <p style="margin:0 0 28px;word-break:break-all;">
-                <a href="{{ invite_url }}" style="color:#0ea5e9;font-size:12px;text-decoration:none;">
+              <p style="margin:0 0 32px;text-align:center;word-break:break-all;">
+                <a href="{{ invite_url }}"
+                   style="color:#0ea5e9;font-size:12px;text-decoration:none;">
                   {{ invite_url }}
                 </a>
               </p>
 
-              <!-- Steps -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #f1f5f9;margin:0 0 24px;"/>
+
+              <!-- What to do next -->
+              <p style="margin:0 0 14px;color:#0f172a;font-size:13px;font-weight:700;">
+                What happens next:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;">
-                    <p style="margin:0 0 12px;color:#374151;font-size:13px;font-weight:700;">
-                      What happens next:
+                  <td style="padding:5px 0;">
+                    <span style="display:inline-block;width:22px;height:22px;
+                                 background:linear-gradient(135deg,#0ea5e9,#6366f1);
+                                 border-radius:50%;color:#fff;font-size:11px;font-weight:700;
+                                 text-align:center;line-height:22px;margin-right:12px;
+                                 vertical-align:middle;">1</span>
+                    <span style="color:#475569;font-size:13px;vertical-align:middle;">
+                      Fill in your name, phone number and password
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:5px 0;">
+                    <span style="display:inline-block;width:22px;height:22px;
+                                 background:linear-gradient(135deg,#0ea5e9,#6366f1);
+                                 border-radius:50%;color:#fff;font-size:11px;font-weight:700;
+                                 text-align:center;line-height:22px;margin-right:12px;
+                                 vertical-align:middle;">2</span>
+                    <span style="color:#475569;font-size:13px;vertical-align:middle;">
+                      Sign in and start using your AI agents
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Expiry notice -->
+          <tr>
+            <td style="padding:0 44px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                              padding:12px 16px;">
+                    <p style="margin:0;color:#92400e;font-size:12px;">
+                      ⏱ &nbsp;This invitation link expires in
+                      <strong>{{ expires_hours }} hours</strong>.
+                      After that you'll need to request a new invite.
                     </p>
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td style="padding:4px 0;">
-                          <span style="display:inline-block;width:20px;height:20px;background:#0ea5e9;border-radius:50%;
-                                       color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:20px;
-                                       margin-right:10px;vertical-align:middle;">1</span>
-                          <span style="color:#4b5563;font-size:13px;vertical-align:middle;">Fill in your name, phone number and password</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:4px 0;">
-                          <span style="display:inline-block;width:20px;height:20px;background:#6366f1;border-radius:50%;
-                                       color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:20px;
-                                       margin-right:10px;vertical-align:middle;">2</span>
-                          <span style="color:#4b5563;font-size:13px;vertical-align:middle;">Verify your email with a 6-digit OTP code</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:4px 0;">
-                          <span style="display:inline-block;width:20px;height:20px;background:#10b981;border-radius:50%;
-                                       color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:20px;
-                                       margin-right:10px;vertical-align:middle;">3</span>
-                          <span style="color:#4b5563;font-size:13px;vertical-align:middle;">Sign in and start using your AI agents</span>
-                        </td>
-                      </tr>
-                    </table>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- Divider -->
-          <tr>
-            <td style="padding:0 40px;">
-              <hr style="border:none;border-top:1px solid #f3f4f6;margin:0;"/>
-            </td>
-          </tr>
-
           <!-- Footer -->
           <tr>
-            <td style="padding:24px 40px 32px;">
-              <p style="margin:0 0 6px;color:#9ca3af;font-size:12px;line-height:1.6;">
-                If you were not expecting this invitation, you can safely ignore this email.
-                This link will expire automatically.
-              </p>
-              <p style="margin:0;color:#9ca3af;font-size:12px;">
+            <td style="background:#f8fafc;border-top:1px solid #f1f5f9;
+                       padding:20px 44px;text-align:center;">
+              <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">
+                If you were not expecting this invitation, you can safely ignore this email.<br/>
                 © {{ year }} {{ app_name }}. All rights reserved.
               </p>
             </td>
