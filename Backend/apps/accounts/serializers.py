@@ -364,6 +364,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
     """Compact read serializer for paginated user lists."""
     is_locked = serializers.BooleanField(read_only=True)
     managed_by = ManagedBySerializer(read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True, default=None)
 
     class Meta:
         model = CustomUser
@@ -372,6 +373,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
             "email",
             "role",
             "managed_by",
+            "company_name",
             "is_verified",
             "is_active",
             "is_locked",
@@ -388,6 +390,7 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     is_locked = serializers.BooleanField(read_only=True)
     managed_by = ManagedBySerializer(read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True, default=None)
 
     class Meta:
         model = CustomUser
@@ -396,6 +399,7 @@ class AdminUserDetailSerializer(serializers.ModelSerializer):
             "email",
             "role",
             "managed_by",
+            "company_name",
             "is_verified",
             "is_active",
             "is_locked",
@@ -747,6 +751,35 @@ class CompleteInviteSerializer(serializers.Serializer):
             last_name=self.validated_data["last_name"],
             phone=self.validated_data.get("phone", ""),
         )
+
+        # ── Link to Organization and Company ──────────────────────────────────
+        # Determine the parent admin who owns the org
+        parent = invite.managed_by or invite.invited_by
+        if parent:
+            try:
+                # If parent is admin, they own an organization
+                org = None
+                if hasattr(parent, "owned_organization"):
+                    org = parent.owned_organization
+                elif parent.role == CustomUser.Role.ADMIN:
+                    from apps.organizations.models import Organization
+                    org = Organization.objects.filter(owner=parent).first()
+
+                if org:
+                    from apps.organizations.models import OrgMembership
+                    OrgMembership.objects.get_or_create(
+                        org=org,
+                        user=user,
+                        defaults={"invited_by": invite.invited_by}
+                    )
+
+                # Sync company from parent if present
+                if parent.company:
+                    user.company = parent.company
+                    user.save(update_fields=["company"])
+            except Exception:
+                # Non-fatal: user is created but membership linking failed
+                pass
 
         invite.is_used = True
         invite.save(update_fields=["is_used"])

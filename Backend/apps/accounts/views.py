@@ -443,13 +443,14 @@ class UserListView(APIView):
             if search:
                 qs = qs.filter(email__icontains=search)
         else:
-            # Admin: only searchable by exact email — no browsing all users
-            search = request.query_params.get("search", "").strip()
-            if not search:
-                return Response({"success": True, "data": [], "message": "Enter a full email address to search."})
+            # Admin: sees users they manage
             qs = CustomUser.objects.select_related("profile", "managed_by").filter(
-                email__iexact=search
+                managed_by=request.user
             ).order_by("-date_joined")
+
+            search = request.query_params.get("search", "").strip()
+            if search:
+                qs = qs.filter(email__icontains=search)
 
         is_active = request.query_params.get("is_active")
         is_verified = request.query_params.get("is_verified")
@@ -675,8 +676,13 @@ class AdminInviteUserView(APIView):
                     context=email_ctx,
                     recipient=email,
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to send invite email: {str(e)}")
+            return Response(
+                {"success": False, "error": {"message": f"Could not send email. Please check SMTP settings. Error: {str(e)}", "details": {}}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
         return _success(
@@ -766,8 +772,10 @@ class CompleteInviteView(APIView):
                 },
                 recipient=user.email,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to send OTP email: {str(e)}")
+            # We still return success since the user was created, but we could warn them.
 
         return _success(
             data={"email": user.email},
@@ -836,8 +844,13 @@ class ResendOTPView(APIView):
                 context={"otp_code": code, "email": user.email, "expires_minutes": 15},
                 recipient=user.email,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to resend OTP email: {str(e)}")
+            return Response(
+                {"success": False, "error": {"message": f"Could not send email. Please check SMTP settings. Error: {str(e)}", "details": {}}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return _success(message="A new verification code has been sent to your email.")
 
