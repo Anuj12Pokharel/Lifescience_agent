@@ -644,7 +644,6 @@ class AdminInviteUserView(APIView):
         org_name = getattr(getattr(request.user, "owned_organization", None), "name", None) or app_name
 
         try:
-<<<<<<< HEAD
             # ── Prefer admin's connected Gmail over server SMTP ───────────────
             from apps.integrations.gmail_sender import get_org_gmail_credential, send_via_gmail
             from django.template.loader import render_to_string
@@ -659,6 +658,7 @@ class AdminInviteUserView(APIView):
             email_ctx = {
                 "email": email,
                 "invited_by": request.user.email,
+                "org_name": org_name,
                 "invite_url": invite_url,
                 "expires_hours": 72,
             }
@@ -668,12 +668,12 @@ class AdminInviteUserView(APIView):
                 send_via_gmail(
                     credential=gmail_cred,
                     to=email,
-                    subject=f"You've been invited to {app_name}",
+                    subject=f"{org_name} has invited you to {app_name}",
                     html_body=html_body,
                 )
             else:
                 _send_html_email(
-                    subject=f"You've been invited to {app_name}",
+                    subject=f"{org_name} has invited you to {app_name}",
                     template="emails/invite_link.html",
                     context=email_ctx,
                     recipient=email,
@@ -685,22 +685,6 @@ class AdminInviteUserView(APIView):
                 {"success": False, "error": {"message": f"Could not send email. Please check SMTP settings. Error: {str(e)}", "details": {}}},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-=======
-            _send_html_email(
-                subject=f"{org_name} has invited you to {app_name}",
-                template="emails/invite_link.html",
-                context={
-                    "email": email,
-                    "invited_by": request.user.email,
-                    "org_name": org_name,
-                    "invite_url": invite_url,
-                    "expires_hours": 72,
-                },
-                recipient=email,
-            )
-        except Exception:
-            pass
->>>>>>> 77d4611a92cd9de88db8272f414f06b767b34fe1
 
 
         return _success(
