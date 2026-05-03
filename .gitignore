@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # v0 runtime files
 __v0_runtime_loader.js
 __v0_devtools.tsx
@@ -10,51 +9,3 @@ node_modules/
 .env*.local
 .DS_Store
 .env
-=======
-# ── Environment files (NEVER commit real secrets) ─────────────────────────────
-.env
-.env.*
-**/.env
-**/.env.*
-.env.local
-.env.production
-.env.development
-
-# Keep .env.example files (they're safe templates)
-!*.env.example
-!.env.example
-
-# ── Python ────────────────────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-*.egg
-.eggs/
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# ── Node / Next.js ────────────────────────────────────────────────────────────
-node_modules/
-.next/
-out/
-*.tsbuildinfo
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# ── Docker ────────────────────────────────────────────────────────────────────
-*.log
-
-# ── OS ────────────────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
->>>>>>> f59e17b1a3c124ce2a478807184c67b02273b21d
