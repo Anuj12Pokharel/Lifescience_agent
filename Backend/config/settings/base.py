@@ -182,6 +182,7 @@ BACKEND_URL = config("BACKEND_URL", default="http://localhost:8000")
 FERNET_KEY = config("FERNET_KEY", default="")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
@@ -296,6 +297,18 @@ CELERY_TASK_TIME_LIMIT = 30 * 60          # 30 minutes hard limit
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60     # 25 minutes soft limit
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# ── Celery Beat: scheduled tasks ──────────────────────────────────────────────
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    # Refresh Gmail OAuth tokens every 30 minutes (tokens expire in ~1 hour).
+    # This keeps admin Gmail connections permanently alive.
+    "refresh-gmail-tokens": {
+        "task": "integrations.refresh_gmail_tokens",
+        "schedule": crontab(minute="*/30"),   # every 30 minutes
+    },
+}
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 

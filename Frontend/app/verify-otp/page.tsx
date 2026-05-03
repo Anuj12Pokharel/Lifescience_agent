@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, ArrowRight, Loader2, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { useVerifyOTP, useResendOTP } from '@/lib/hooks/use-auth';
 
-export default function VerifyOTPPage() {
+function VerifyOTPContent() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const emailParam   = searchParams.get('email') ?? '';
@@ -212,6 +212,14 @@ export default function VerifyOTPPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyOTPPage() {
+  return (
+    <Suspense fallback={<div style={{ background: '#020B18', minHeight: '100vh' }} />}>
+      <VerifyOTPContent />
+    </Suspense>
   );
 }
 

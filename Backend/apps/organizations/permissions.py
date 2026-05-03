@@ -8,12 +8,15 @@ class IsOrgOwner(BasePermission):
     message = "You must be an organization owner to perform this action."
 
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.is_admin
-            and hasattr(request.user, "owned_organization")
-        )
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        
+        # Superadmins bypass ownership checks for safety
+        if user.is_superadmin:
+            return True
+            
+        return user.is_admin and hasattr(user, "owned_organization")
 
 
 class HasOrgAgentAccess(BasePermission):
