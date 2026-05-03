@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useAgentTimer } from "@/lib/hooks/use-agent-timer";
+import { useQuery } from "@tanstack/react-query";
+import { usageApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import {
   ChevronLeft, MessageSquare, Loader2, Paperclip, X, BarChart3, TrendingUp,
   PieChart, Activity, Grid, Maximize2, Columns, LayoutList, Layers, FileText, Image as ImageIcon
@@ -189,6 +193,18 @@ function Background() {
 }
 
 export default function DataAnalystPage() {
+  const { user } = useAuth();
+
+  const { data: limitCheck, isLoading: limitLoading } = useQuery({
+    queryKey: ['limit-check', 'data-analyst'],
+    queryFn: () => usageApi.checkLimit('data-analyst'),
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
+
+  const isBlocked = limitCheck?.is_blocked === true;
+  useAgentTimer("data-analyst", !isBlocked);
+
   const [messages, setMessages] = useState<Msg[]>([{
     id: "0", sender: "ai", time: nowTime(),
     text: "Hello. I am the Data Analyst AI. You can upload biological datasets or reports, and I can provide general insights or visual representations.",
@@ -327,11 +343,25 @@ export default function DataAnalystPage() {
     
     addMsg("user", t, undefined, attachment?.name, attachment?.type, analysisString);
     submitToWebhook(t, analysisType, vizType);
-    
-    // Reset modal state
     setAnalysisType("");
     setVizType("");
   };
+
+  if (limitLoading) return null;
+
+  if (isBlocked) return (
+    <div style={{ minHeight:"100vh", background:"#05080f", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, padding:24, textAlign:"center", fontFamily:"sans-serif" }}>
+      <div style={{ fontSize:48 }}>⏱️</div>
+      <h2 style={{ fontSize:22, fontWeight:700, color:"#ff4d6d" }}>Time Limit Reached</h2>
+      <p style={{ color:"rgba(232,237,248,0.5)", maxWidth:360 }}>
+        You have used <strong style={{color:"#e8edf8"}}>{limitCheck?.used_minutes} min</strong> of your <strong style={{color:"#e8edf8"}}>{limitCheck?.limit_minutes} min</strong> limit for this agent.
+      </p>
+      <p style={{ color:"rgba(232,237,248,0.4)", fontSize:13 }}>Please contact your administrator to increase your limit.</p>
+      <a href="/dashboard" style={{ marginTop:8, padding:"10px 24px", background:"rgba(255,77,109,0.15)", border:"1px solid rgba(255,77,109,0.3)", borderRadius:10, color:"#ff4d6d", fontSize:14, fontWeight:600, textDecoration:"none" }}>
+        Back to Dashboard
+      </a>
+    </div>
+  );
 
   return (
     <>

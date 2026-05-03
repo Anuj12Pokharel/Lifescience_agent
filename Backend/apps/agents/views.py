@@ -60,6 +60,9 @@ def _user_has_agent_access(user, agent) -> bool:
         return True
 
     if user.role == CustomUser.Role.ADMIN:
+        # Deactivated admins cannot access any agents
+        if not user.is_active:
+            return False
         from apps.organizations.models import OrgAgentAccess
         try:
             org = user.owned_organization
@@ -67,6 +70,12 @@ def _user_has_agent_access(user, agent) -> bool:
                 org=org, agent=agent, is_enabled=True
             ).exists()
         except Exception:
+            return False
+
+    # Regular users: if their managing admin is deactivated, all agents are paused
+    if getattr(user, 'managed_by_id', None):
+        manager = user.managed_by
+        if manager and not manager.is_active:
             return False
 
     now = timezone.now()
@@ -620,6 +629,13 @@ class MyAgentsView(APIView):
 
     def get(self, request: Request) -> Response:
         from apps.agents.group_models import AgentGroupMembership
+        from apps.accounts.models import CustomUser
+
+        # If this user's managing admin is deactivated, return empty — all agents paused
+        if request.user.role == CustomUser.Role.USER:
+            manager = getattr(request.user, 'managed_by', None)
+            if manager and not manager.is_active:
+                return Response({"success": True, "data": {"agents": [], "paused": True, "reason": "Your administrator account is currently deactivated. Agent access has been suspended until it is reactivated."}})
 
         now = timezone.now()
 

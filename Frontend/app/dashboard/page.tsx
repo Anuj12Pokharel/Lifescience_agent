@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Bot, Zap, ExternalLink, LogOut } from 'lucide-react';
+import { Bot, Zap, ExternalLink, LogOut, Clock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useLogout } from '@/lib/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
@@ -63,6 +63,9 @@ export default function UserDashboardPage() {
             </div>
             <span style={{ fontSize: 13, color: 'rgba(160,200,240,0.7)' }}>{user.email}</span>
           </div>
+          <Link href="/dashboard/usage" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 8, color: 'rgba(0,212,255,0.7)', fontSize: 13, textDecoration: 'none' }}>
+            <Clock size={14} /> My Usage
+          </Link>
           <button
             onClick={() => logout.mutate()}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'transparent', border: '1px solid rgba(255,80,80,0.25)', borderRadius: 8, color: 'rgba(255,100,100,0.8)', fontSize: 13, cursor: 'pointer', transition: 'all 0.2s' }}

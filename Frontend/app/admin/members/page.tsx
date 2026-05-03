@@ -1,37 +1,91 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, UserCheck, Users, Clock, RefreshCw, Send, Mail } from 'lucide-react';
-import { type InviteMember, membersApi } from '@/lib/api-client';
 import DashboardLayout from '@/components/dashboard-layout';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth-context';
-import { InviteUserDialog } from '@/components/admin/users/invite-user-dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { membersApi, type InviteMember } from '@/lib/api-client';
+import { Users, UserCheck, Clock, RefreshCw, Search, Send, Mail, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
+const roleBadge = (role: string) => {
+  const map: Record<string, [string, string]> = {
+    admin: ['#A78BFA', 'rgba(167,139,250,0.12)'],
+    user:  ['#00D4FF', 'rgba(0,212,255,0.1)'],
+  };
+  const [color, bg] = map[role] ?? ['#888', 'rgba(136,136,136,0.1)'];
+  return (
+    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5, background: bg, color, border: `1px solid ${color}30`, fontWeight: 700, textTransform: 'uppercase' as const }}>
+      {role}
+    </span>
+  );
+};
+
 const statusBadge = (m: InviteMember) => {
-  if (m.signup_status === 'accepted')
+  if (m.signup_status === 'accepted') {
     return <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, background: 'rgba(0,200,100,0.1)', color: '#00CC66', border: '1px solid rgba(0,200,100,0.3)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><UserCheck size={11} /> Accepted</span>;
-  if (m.is_expired)
+  }
+  if (m.is_expired) {
     return <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, background: 'rgba(255,60,60,0.1)', color: '#FF6060', border: '1px solid rgba(255,60,60,0.3)', fontWeight: 700 }}>Expired</span>;
+  }
   return <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, background: 'rgba(255,180,0,0.1)', color: '#FFB400', border: '1px solid rgba(255,180,0,0.3)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Clock size={11} /> Pending</span>;
 };
 
+// ─── Row ──────────────────────────────────────────────────────────────────────
+function MemberRow({ member, onResend, resending }: { member: InviteMember; onResend: (id: string) => void; resending: boolean }) {
+  return (
+    <tr
+      style={{ transition: 'background 0.15s' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,100,180,0.04)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <td style={S.td}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,100,180,0.15)', border: '1px solid rgba(0,100,180,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Mail size={13} color="rgba(0,200,255,0.6)" />
+          </div>
+          <span style={{ fontWeight: 600, color: '#E8F4FF', fontSize: 13 }}>{member.email}</span>
+        </div>
+      </td>
+      <td style={S.td}>{roleBadge(member.invited_role)}</td>
+      <td style={S.td}>{statusBadge(member)}</td>
+      <td style={S.td}><span style={{ color: 'rgba(120,170,220,0.6)', fontSize: 12 }}>{fmt(member.invited_at)}</span></td>
+      <td style={S.td}>
+        <span style={{ color: member.is_expired ? 'rgba(255,100,100,0.6)' : 'rgba(120,170,220,0.6)', fontSize: 12 }}>
+          {fmt(member.expires_at)}
+        </span>
+      </td>
+      <td style={S.td}><span style={{ color: 'rgba(120,170,220,0.6)', fontSize: 12 }}>{member.signup_status === 'accepted' ? fmt(member.date_joined) : '—'}</span></td>
+      <td style={{ ...S.td, textAlign: 'right' as const }}>
+        {member.signup_status === 'pending' ? (
+          <button
+            onClick={() => onResend(member.invite_id)}
+            disabled={resending}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, background: 'rgba(0,150,255,0.1)', border: '1px solid rgba(0,150,255,0.25)', color: '#00D4FF', fontSize: 12, fontWeight: 600, cursor: resending ? 'not-allowed' : 'pointer', opacity: resending ? 0.6 : 1 }}
+          >
+            <Send size={11} /> {resending ? 'Sending…' : 'Resend'}
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, color: 'rgba(120,170,220,0.3)' }}>—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const S = {
   td: { padding: '12px 16px', fontSize: 13, borderBottom: '1px solid rgba(0,100,180,0.08)', verticalAlign: 'middle' as const },
   th: { padding: '10px 16px', fontSize: 11, fontWeight: 700, color: 'rgba(120,170,220,0.5)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', borderBottom: '1px solid rgba(0,100,180,0.15)', whiteSpace: 'nowrap' as const, textAlign: 'left' as const },
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
 export default function AdminMembersPage() {
-  const { user: currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'superadmin';
   const qc = useQueryClient();
-
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted'>('all');
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -61,29 +115,33 @@ export default function AdminMembersPage() {
       if (filter === 'accepted') return m.signup_status === 'accepted';
       return true;
     })
-    .filter(m => !search || m.email.toLowerCase().includes(search.toLowerCase()));
+    .filter(m => m.email.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <DashboardLayout requireAdmin>
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col gap-6 max-w-6xl mx-auto">
+        {/* Page header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Members</h1>
-            <p className="text-sm text-muted-foreground mt-1">Invite users and track their signup status.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">Invited Members</h1>
+            <p className="text-slate-400 text-sm max-w-xl">
+              Track your invited members, monitor signup status, and resend expired invitations.
+            </p>
           </div>
-          <Button onClick={() => setInviteOpen(true)} className="bg-primary text-black font-bold shadow-[0_0_20px_-5px_rgba(var(--primary),0.4)]">
-            <UserCheck className="mr-2 h-4 w-4" /> Invite User
-          </Button>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors text-sm"
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
         </div>
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Total Invited',  value: counts.total ?? allMembers.length, color: 'text-cyan-400',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    icon: Users },
-            { label: 'Signed Up',      value: counts.accepted ?? 0,              color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: UserCheck },
-            { label: 'Pending Invite', value: counts.pending ?? 0,               color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: Clock },
+            { label: 'Total Invited', value: counts.total ?? allMembers.length, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', icon: Users },
+            { label: 'Signed Up',     value: counts.accepted ?? 0,             color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: UserCheck },
+            { label: 'Pending Invite',value: counts.pending ?? 0,              color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: Clock },
           ].map(({ label, value, color, bg, border, icon: Icon }) => (
             <div key={label} className={`rounded-xl ${bg} border ${border} p-5 flex items-center gap-4`}>
               <div className={`w-10 h-10 rounded-lg ${bg} border ${border} flex items-center justify-center`}>
@@ -97,7 +155,7 @@ export default function AdminMembersPage() {
           ))}
         </div>
 
-        {/* Filter + Search + Refresh */}
+        {/* Filter + Search bar */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex gap-1 bg-slate-900/60 border border-slate-700/50 rounded-lg p-1">
             {(['all', 'pending', 'accepted'] as const).map(f => (
@@ -110,7 +168,7 @@ export default function AdminMembersPage() {
               </button>
             ))}
           </div>
-          <div className="relative flex-1 min-w-50 max-w-xs">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               placeholder="Search by email…"
@@ -119,20 +177,17 @@ export default function AdminMembersPage() {
               className="w-full pl-8 pr-3 py-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-sm text-white placeholder:text-slate-500 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
             />
           </div>
-          <button onClick={() => refetch()} className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition-colors text-sm ml-auto">
-            <RefreshCw size={14} /> Refresh
-          </button>
         </div>
 
         {/* Table */}
         <div className="rounded-xl bg-slate-900/60 border border-slate-700/50 overflow-hidden">
           {isLoading ? (
-            <div className="text-center py-16 text-slate-500">Loading…</div>
+            <div className="text-center py-16 text-slate-500">Loading members…</div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-16">
               <div className="text-4xl mb-3">{allMembers.length === 0 ? '📬' : '🔍'}</div>
               <div className="text-slate-400 text-sm">
-                {allMembers.length === 0 ? 'No invitations sent yet. Use the Invite User button to get started.' : 'No invitations match your filter.'}
+                {allMembers.length === 0 ? 'No members invited yet. Use the User Directory to send invitations.' : 'No members match your search.'}
               </div>
             </div>
           ) : (
@@ -151,43 +206,12 @@ export default function AdminMembersPage() {
                 </thead>
                 <tbody>
                   {filtered.map(m => (
-                    <tr
+                    <MemberRow
                       key={m.invite_id}
-                      style={{ transition: 'background 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,100,180,0.04)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <td style={S.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,100,180,0.15)', border: '1px solid rgba(0,100,180,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Mail size={13} color="rgba(0,200,255,0.6)" />
-                          </div>
-                          <span style={{ fontWeight: 600, color: '#E8F4FF', fontSize: 13 }}>{m.email}</span>
-                        </div>
-                      </td>
-                      <td style={S.td}>
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5, background: m.invited_role === 'admin' ? 'rgba(167,139,250,0.12)' : 'rgba(0,212,255,0.1)', color: m.invited_role === 'admin' ? '#A78BFA' : '#00D4FF', border: `1px solid ${m.invited_role === 'admin' ? '#A78BFA' : '#00D4FF'}30`, fontWeight: 700, textTransform: 'uppercase' as const }}>
-                          {m.invited_role}
-                        </span>
-                      </td>
-                      <td style={S.td}>{statusBadge(m)}</td>
-                      <td style={S.td}><span style={{ color: 'rgba(120,170,220,0.6)', fontSize: 12 }}>{fmt(m.invited_at)}</span></td>
-                      <td style={S.td}><span style={{ color: m.is_expired ? 'rgba(255,100,100,0.6)' : 'rgba(120,170,220,0.6)', fontSize: 12 }}>{fmt(m.expires_at)}</span></td>
-                      <td style={S.td}><span style={{ color: 'rgba(120,170,220,0.6)', fontSize: 12 }}>{m.signup_status === 'accepted' ? fmt(m.date_joined) : '—'}</span></td>
-                      <td style={{ ...S.td, textAlign: 'right' as const }}>
-                        {m.signup_status === 'pending' ? (
-                          <button
-                            onClick={() => resend.mutate(m.invite_id)}
-                            disabled={resendingId === m.invite_id && resend.isPending}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 7, background: 'rgba(0,150,255,0.1)', border: '1px solid rgba(0,150,255,0.25)', color: '#00D4FF', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: (resendingId === m.invite_id && resend.isPending) ? 0.6 : 1 }}
-                          >
-                            <Send size={11} /> {resendingId === m.invite_id && resend.isPending ? 'Sending…' : 'Resend'}
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 12, color: 'rgba(120,170,220,0.3)' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
+                      member={m}
+                      onResend={id => resend.mutate(id)}
+                      resending={resendingId === m.invite_id && resend.isPending}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -195,14 +219,13 @@ export default function AdminMembersPage() {
           )}
         </div>
 
+        {/* Tip */}
         {allMembers.length > 0 && (
           <p className="text-xs text-slate-600 text-center">
             Resending an invite extends the expiry by 7 days and sends a fresh link to the recipient's inbox.
           </p>
         )}
       </div>
-
-      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} isAdmin={isAdmin} />
     </DashboardLayout>
   );
 }

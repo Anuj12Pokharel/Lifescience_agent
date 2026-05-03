@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard-layout';
-import { Users, Bot, Shield, Activity, UsersRound, ArrowRight, Building, Calendar, Plug } from 'lucide-react';
+import { Users, Bot, Shield, Activity, UsersRound, ArrowRight, Building, Calendar, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
 import { useQuery } from '@tanstack/react-query';
-import { organizationsApi } from '@/lib/api-client';
+import { organizationsApi, membersApi } from '@/lib/api-client';
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
@@ -16,11 +16,16 @@ export default function AdminDashboardPage() {
     queryFn: organizationsApi.getMyOrgStats,
   });
 
+  const { data: membersData } = useQuery({
+    queryKey: ['admin-members'],
+    queryFn: membersApi.list,
+  });
+
   const metricCards = [
-    { label: 'Total Members',     value: stats?.member_count,           icon: Users,     color: 'text-cyan-400',   bg: 'bg-cyan-500/10',   href: '/admin/users'  },
-    { label: 'Active Agents',    value: stats?.subscribed_agent_count, icon: Bot,       color: 'text-blue-400',   bg: 'bg-blue-500/10',   href: '/admin/organization' },
-    { label: 'Work Groups',       value: stats?.group_count,            icon: UsersRound,color: 'text-purple-400', bg: 'bg-purple-500/10', href: '/admin/groups' },
-    { label: 'System Health',    value: 'Optimal',                     icon: Activity,  color: 'text-emerald-400',bg: 'bg-emerald-500/10',href: null            },
+    { label: 'Members',           value: stats?.member_count,           icon: Users,     color: 'text-cyan-400',   bg: 'bg-cyan-500/20',   href: '/admin/users'        },
+    { label: 'Pending Invites',   value: membersData?.counts?.pending,  icon: UserPlus,  color: 'text-violet-400', bg: 'bg-violet-500/20', href: '/admin/users'        },
+    { label: 'Subscribed Agents', value: stats?.subscribed_agent_count, icon: Bot,       color: 'text-blue-400',   bg: 'bg-blue-500/20',   href: '/admin/organization' },
+    { label: 'Groups',            value: stats?.group_count,            icon: UsersRound,color: 'text-purple-400', bg: 'bg-purple-500/20', href: '/admin/groups'       },
   ];
 
   return (
@@ -39,7 +44,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {metricCards.map(({ label, value, icon: Icon, color, bg, href }) => {
             const cardContent = (
               <Card className="h-full bg-slate-900/40 backdrop-blur-md border border-white/5 hover:border-cyan-500/30 transition-all duration-500 group relative overflow-hidden rounded-2xl">
@@ -88,17 +93,18 @@ export default function AdminDashboardPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {[
-               { title: 'User Directory', desc: 'Manage member accounts, permissions, and organizational hierarchy.', href: '/admin/users', icon: Users, color: 'cyan' },
-               { title: 'Agent Console', desc: 'Configure AI behaviors, subscription status, and access controls.', href: '/admin/agents', icon: Bot, color: 'blue' },
-               { title: 'Work Groups', desc: 'Group members and assign collective agent permissions efficiently.', href: '/admin/groups', icon: UsersRound, color: 'purple' },
-               { title: 'Company Hub', desc: 'Customize organizational identity, mission statements, and core services.', href: '/admin/company', icon: Building, color: 'emerald' },
-               { title: 'Events Engine', desc: 'Schedule, manage, and track workshops, conferences, and assignments.', href: '/admin/events', icon: Calendar, color: 'orange' },
-               { title: 'Integrations', desc: 'Connect third-party services, manage API keys, and Gmail OAuth settings.', href: '/admin/integrations', icon: Plug, color: 'indigo' },
-             ].map(({ title, desc, href, icon: Icon, color }) => (
-               <Link key={title} href={href} className="group p-1 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-all duration-300">
-                 <div className="bg-[#020B18]/60 p-6 rounded-[14px] h-full transition-colors group-hover:bg-[#020B18]/80">
-                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 bg-${color}-500/10 border border-${color}-500/20 group-hover:scale-110 transition-transform duration-300`}>
-                     <Icon className={`h-6 w-6 text-${color}-400`} />
+               { title: 'Members', desc: 'View accounts, manage roles, agent access, and track invitations all in one place.', href: '/admin/users', color: 'from-[#00D4FF]/20 to-transparent', icon: Users },
+               { title: 'Agent Configuration', desc: 'Create AI agents, adjust logic parameters, and set direct access rights.', href: '/admin/agents', color: 'from-blue-500/20 to-transparent', icon: Bot },
+               { title: 'Group Access Control', desc: 'Organize users into logical groups and distribute agent permissions.', href: '/admin/groups', color: 'from-purple-500/20 to-transparent', icon: UsersRound },
+               { title: 'Company Management', desc: 'Edit company information, mission, services, and manage administrative assignments.', href: '/admin/company', color: 'from-green-500/20 to-transparent', icon: Building },
+               { title: 'Events Management', desc: 'Create and manage events, workshops, and conferences with scheduling and assignments.', href: '/admin/events', color: 'from-orange-500/20 to-transparent', icon: Calendar },
+               { title: 'Usage & Time Limits', desc: 'View agent usage per user, set time restrictions, and monitor total minutes per agent.', href: '/admin/usage', color: 'from-yellow-500/20 to-transparent', icon: Activity },
+             ].map(({ title, desc, href, color, icon: ModuleIcon }) => (
+               <Link key={title} href={href} className="group overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/40 hover:bg-slate-800/50 transition-all duration-300 relative block hover:shadow-xl hover:shadow-cyan-500/10">
+                 <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-20 group-hover:opacity-30 transition-opacity duration-500`} />
+                 <div className="p-8 relative z-10">
+                   <div className="bg-slate-800/60 w-12 h-12 rounded-xl flex items-center justify-center mb-6 border border-slate-600/50 group-hover:border-cyan-500/50 transition-all duration-300 cursor-pointer">
+                     <ModuleIcon className="h-6 w-6 text-cyan-400 group-hover:text-cyan-300 transition-colors transition-transform duration-200 group-hover:scale-110" />
                    </div>
                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
                      {title}
