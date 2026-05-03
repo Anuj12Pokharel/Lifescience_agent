@@ -752,35 +752,9 @@ class CompleteInviteView(APIView):
         serializer.is_valid(raise_exception=True)
         user: CustomUser = serializer.save()
 
-<<<<<<< HEAD
-        # Generate and store OTP
-        code = OTPCode.generate_code()
-        OTPCode.objects.create(
-            user=user,
-            code=code,
-            expires_at=tz.now() + tz.timedelta(minutes=15),
-        )
-
-        try:
-            _send_html_email(
-                subject="Your verification code",
-                template="emails/otp_verification.html",
-                context={
-                    "otp_code": code,
-                    "email": user.email,
-                    "expires_minutes": 15,
-                },
-                recipient=user.email,
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"Failed to send OTP email: {str(e)}")
-            # We still return success since the user was created, but we could warn them.
-=======
         # Auto-verify invited users — no OTP needed
         user.is_verified = True
         user.save(update_fields=["is_verified"])
->>>>>>> 77d4611a92cd9de88db8272f414f06b767b34fe1
 
         return _success(
             data={"email": user.email},
