@@ -2,7 +2,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { getAccessToken } from "@/lib/api";
+import { useAgentTimer } from "@/lib/hooks/use-agent-timer";
 import { useAuth } from "@/lib/auth-context";
+import { useQuery } from "@tanstack/react-query";
+import { usageApi } from "@/lib/api-client";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -335,6 +338,17 @@ function RecordingWave() {
 // ─────────────────────────────────────────────────────────────
 export default function ProjectTrackerPage() {
   const { user } = useAuth();
+
+  const { data: limitCheck, isLoading: limitLoading } = useQuery({
+    queryKey: ['limit-check', 'project-tracking-agent'],
+    queryFn: () => usageApi.checkLimit('project-tracking-agent'),
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
+
+  const isBlocked = limitCheck?.is_blocked === true;
+  useAgentTimer("project-tracking-agent", !isBlocked);
+
   const sessionId = useRef(`session_web_${Date.now()}`);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -383,7 +397,7 @@ export default function ProjectTrackerPage() {
 
     try {
       const token = getAccessToken();
-      const base = (process.env.NEXT_PUBLIC_API_URL || "https://api.lifescienceaiagents.com").replace(/\/$/, "");
+      const base = (process.env.NEXT_PUBLIC_API_URL || "https://backend.lifescienceaiagents.com").replace(/\/$/, "");
       const res = await fetch(`${base}/api/v1/agents/project-tracking-agent/execute/`, {
         method: "POST",
         headers: {
@@ -591,6 +605,26 @@ export default function ProjectTrackerPage() {
   // ── Render ────────────────────────────────────────────────
   const isRecording   = recordState === "recording";
   const isProcessing  = recordState === "processing";
+
+  if (limitLoading) return null;
+
+  if (isBlocked) return (
+    <>
+      <style>{CSS}</style>
+      <GridBg />
+      <div style={{ position:"relative", zIndex:1, height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, padding:24, textAlign:"center" }}>
+        <div style={{ fontSize:48 }}>⏱️</div>
+        <h2 style={{ fontSize:22, fontWeight:700, color:"var(--rose)" }}>Time Limit Reached</h2>
+        <p style={{ color:"var(--muted)", maxWidth:360 }}>
+          You have used <strong style={{color:"var(--text)"}}>{limitCheck?.used_minutes} min</strong> of your <strong style={{color:"var(--text)"}}>{limitCheck?.limit_minutes} min</strong> limit for this agent.
+        </p>
+        <p style={{ color:"var(--muted)", fontSize:13 }}>Please contact your administrator to increase your limit.</p>
+        <a href="/dashboard" style={{ marginTop:8, padding:"10px 24px", background:"rgba(255,77,109,0.15)", border:"1px solid rgba(255,77,109,0.3)", borderRadius:10, color:"var(--rose)", fontSize:14, fontWeight:600, textDecoration:"none" }}>
+          Back to Dashboard
+        </a>
+      </div>
+    </>
+  );
 
   return (
     <>

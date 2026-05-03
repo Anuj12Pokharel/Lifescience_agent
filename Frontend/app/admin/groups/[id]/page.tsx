@@ -369,14 +369,15 @@ function AddMembersModal({ groupId, existingUserIds, open, onOpenChange }: {
   groupId: string; existingUserIds: string[]; open: boolean; onOpenChange: (open: boolean) => void;
 }) {
   const [search, setSearch] = useState('');
-  const [submittedSearch, setSubmittedSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const addMembers = useAddGroupMembers(groupId);
 
-  const { data, isLoading } = useUsers(submittedSearch ? { search: submittedSearch } : {});
-  const users = submittedSearch
-    ? (data?.results ?? []).filter(u => !existingUserIds.includes(u.id))
-    : [];
+  // Load all active accepted users upfront — no search required to trigger
+  const { data, isLoading } = useUsers({ page_size: 200, is_active: 'true' });
+  const users = (data?.results ?? []).filter(u => !existingUserIds.includes(u.id));
+  const filtered = search
+    ? users.filter(u => u.email.toLowerCase().includes(search.toLowerCase()))
+    : users;
 
   const toggleUser = (id: string) => {
     const next = new Set(selected);
@@ -384,51 +385,65 @@ function AddMembersModal({ groupId, existingUserIds, open, onOpenChange }: {
     setSelected(next);
   };
 
+  const handleClose = (o: boolean) => {
+    if (!addMembers.isPending) {
+      onOpenChange(o);
+      if (!o) { setSearch(''); setSelected(new Set()); }
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!addMembers.isPending) { onOpenChange(o); if (!o) { setSearch(''); setSubmittedSearch(''); setSelected(new Set()); } } }}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px] bg-[#0A1428] border-border/40 text-foreground">
         <DialogHeader>
           <DialogTitle>Add Members</DialogTitle>
-          <DialogDescription>Search and select users to add to this group.</DialogDescription>
+          <DialogDescription>
+            Select users to add to this group.{users.length > 0 && ` ${users.length} user${users.length !== 1 ? 's' : ''} available.`}
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex gap-2 mb-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Enter full email address..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { setSubmittedSearch(search); setSelected(new Set()); } }}
-              className="pl-9 bg-muted/40 border-border/40"
-              autoFocus
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={() => { setSubmittedSearch(search); setSelected(new Set()); }} className="shrink-0">Search</Button>
+
+        {/* Search filter */}
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Filter by email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-muted/40 border-border/40"
+            autoFocus
+          />
         </div>
-        <div className="max-h-[300px] overflow-y-auto border border-border/20 rounded-lg bg-card/20 p-1">
-          {isLoading && submittedSearch ? (
+
+        <div className="max-h-80 overflow-y-auto border border-border/20 rounded-lg bg-card/20 p-1">
+          {isLoading ? (
             <div className="p-8 flex justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : !submittedSearch ? (
-            <div className="p-8 text-center text-muted-foreground font-medium text-sm">Enter an email address and press Search</div>
-          ) : users.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground font-medium text-sm">
-              {`No users matching "${submittedSearch}"`}
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {search ? `No users matching "${search}"` : 'No eligible users found'}
             </div>
           ) : (
-            users.map(u => (
+            filtered.map(u => (
               <label key={u.id} className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${selected.has(u.id) ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/10 border border-transparent'}`}>
                 <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleUser(u.id)} className="w-4 h-4 accent-primary" />
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs ring-1 ring-primary/20 shrink-0">
+                  {u.email[0].toUpperCase()}
+                </div>
                 <span className="flex-1 font-medium text-sm">{u.email}</span>
                 <Badge variant="outline" className="text-[10px] uppercase text-muted-foreground">{u.role}</Badge>
               </label>
             ))
           )}
         </div>
+
         <DialogFooter className="pt-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={selected.size === 0 || addMembers.isPending} onClick={() => addMembers.mutate([...selected], { onSuccess: () => onOpenChange(false) })} className="bg-primary text-black font-bold">
+          <Button
+            disabled={selected.size === 0 || addMembers.isPending}
+            onClick={() => addMembers.mutate([...selected], { onSuccess: () => onOpenChange(false) })}
+            className="bg-primary text-black font-bold"
+          >
             {addMembers.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Add Selected ({selected.size})
           </Button>

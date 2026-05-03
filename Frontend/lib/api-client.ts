@@ -903,6 +903,126 @@ export type EventPayload = {
   managed_by?: string | null;
 };
 
+// ─── Usage tracking ────────────────────────────────────────────────────────────
+
+export interface UsageAgentStat {
+  agent_id: string;
+  agent_name: string;
+  agent_slug: string;
+  minutes_used: number;
+  limit_minutes: number | null;
+}
+
+export interface AdminUsageStats {
+  by_agent: { agent_id: string; agent_name: string; agent_slug: string; total_minutes: number }[];
+  by_user: {
+    user_id: string;
+    user_email: string;
+    agents: { agent_id: string; agent_name: string; minutes_used: number; limit_minutes?: number | null }[];
+  }[];
+}
+
+export interface TimeLimit {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  target_user_id: string;
+  target_user_email: string;
+  limit_minutes: number;
+}
+
+export const usageApi = {
+  startSession: async (agent_slug: string): Promise<{ session_id: string; limit_minutes: number | null; used_minutes: number }> => {
+    const res = await api.post('/api/v1/usage/sessions/start/', { agent_slug });
+    return res.data?.data ?? res.data;
+  },
+
+  heartbeat: async (session_id: string): Promise<{ seconds_active: number; minutes_active: number; limit_exceeded: boolean; limit_minutes: number | null }> => {
+    const res = await api.post(`/api/v1/usage/sessions/${session_id}/heartbeat/`);
+    return res.data?.data ?? res.data;
+  },
+
+  endSession: async (session_id: string): Promise<void> => {
+    await api.post(`/api/v1/usage/sessions/${session_id}/end/`);
+  },
+
+  myStats: async (): Promise<UsageAgentStat[]> => {
+    const res = await api.get('/api/v1/usage/my/');
+    return res.data?.data ?? res.data;
+  },
+
+  checkLimit: async (slug: string): Promise<{ limit_minutes: number | null; used_minutes: number; is_blocked: boolean }> => {
+    const res = await api.get(`/api/v1/usage/check/${slug}/`);
+    return res.data?.data ?? res.data;
+  },
+
+  adminStats: async (): Promise<AdminUsageStats> => {
+    const res = await api.get('/api/v1/usage/admin/');
+    return res.data?.data ?? res.data;
+  },
+
+  getLimits: async (): Promise<TimeLimit[]> => {
+    const res = await api.get('/api/v1/usage/limits/');
+    return res.data?.data ?? res.data;
+  },
+
+  setLimit: async (data: { agent_id: string; target_user_id: string; limit_minutes: number }): Promise<TimeLimit> => {
+    const res = await api.post('/api/v1/usage/limits/', data);
+    return res.data?.data ?? res.data;
+  },
+
+  deleteLimit: async (limit_id: string): Promise<void> => {
+    await api.delete(`/api/v1/usage/limits/${limit_id}/`);
+  },
+};
+
+// ─── Admin registrations & members ────────────────────────────────────────────
+
+export interface AdminRegistration {
+  id: string;
+  email: string;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  rejection_reason: string;
+  date_joined: string;
+  is_active: boolean;
+  first_name: string;
+  last_name: string;
+  member_count: number;
+}
+
+export interface InviteMember {
+  invite_id: string;
+  email: string;
+  invited_role: string;
+  signup_status: 'pending' | 'accepted';
+  user_id: string | null;
+  date_joined: string | null;
+  invited_at: string;
+  expires_at: string;
+  is_expired: boolean;
+  token: string;
+}
+
+export const registrationsApi = {
+  list: async (): Promise<{ pending: AdminRegistration[]; approved: AdminRegistration[]; rejected: AdminRegistration[]; counts: Record<string, number> }> => {
+    const res = await api.get('/api/v1/auth/superadmin/registrations/');
+    return res.data?.data ?? res.data;
+  },
+  decide: async (admin_id: string, action: 'approve' | 'reject', reason?: string): Promise<void> => {
+    await api.post(`/api/v1/auth/superadmin/registrations/${admin_id}/decide/`, { action, reason });
+  },
+};
+
+export const membersApi = {
+  list: async (): Promise<{ members: InviteMember[]; counts: Record<string, number> }> => {
+    const res = await api.get('/api/v1/auth/admin/members/');
+    return res.data?.data ?? res.data;
+  },
+  resend: async (invite_id: string): Promise<void> => {
+    await api.post(`/api/v1/auth/admin/members/${invite_id}/resend/`);
+  },
+};
+
 export const eventsApi = {
   list: async (): Promise<CompanyEvent[]> => {
     const res = await api.get('/api/v1/company/events/');

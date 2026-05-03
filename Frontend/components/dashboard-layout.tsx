@@ -37,7 +37,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
 interface NavItem {
@@ -49,7 +48,7 @@ interface NavItem {
 const adminNav: NavItem[] = [
   { label: 'Overview', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Organization', href: '/admin/organization', icon: Building },
-  { label: 'User Directory', href: '/admin/users', icon: Users },
+  { label: 'Members', href: '/admin/users', icon: Users },
   { label: 'Work Groups', href: '/admin/groups', icon: UsersRound },
   { label: 'AI Agents', href: '/admin/agents', icon: Bot },
   { label: 'Integrations', href: '/admin/integrations', icon: Plug },
