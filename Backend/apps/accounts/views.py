@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.accounts.models import CustomUser
+from apps.accounts.models import CustomUser, InviteToken
 from apps.accounts.serializers import (
     AdminInviteUserSerializer,
     AdminLockUserSerializer,
@@ -97,7 +97,7 @@ def _send_html_email(
         to=[recipient],
     )
     email.attach_alternative(html_body, "text/html")
-    email.send(fail_silently=False)
+    email.send(fail_silently=True)
 
 
 def _frontend_url() -> str:
@@ -640,14 +640,16 @@ class AdminInviteUserView(APIView):
 
         invite_url = f"{_frontend_url()}/invite/{invite.token}"
         app_name = getattr(settings, "APP_NAME", "Life Science AI")
+        org_name = getattr(getattr(request.user, "owned_organization", None), "name", None) or app_name
 
         try:
             _send_html_email(
-                subject=f"You've been invited to {app_name}",
+                subject=f"{org_name} has invited you to {app_name}",
                 template="emails/invite_link.html",
                 context={
                     "email": email,
                     "invited_by": request.user.email,
+                    "org_name": org_name,
                     "invite_url": invite_url,
                     "expires_hours": 72,
                 },
@@ -717,38 +719,17 @@ class CompleteInviteView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request: Request) -> Response:
-        from django.utils import timezone as tz
-        from apps.accounts.models import OTPCode
-
         serializer = CompleteInviteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user: CustomUser = serializer.save()
 
-        # Generate and store OTP
-        code = OTPCode.generate_code()
-        OTPCode.objects.create(
-            user=user,
-            code=code,
-            expires_at=tz.now() + tz.timedelta(minutes=15),
-        )
-
-        try:
-            _send_html_email(
-                subject="Your verification code",
-                template="emails/otp_verification.html",
-                context={
-                    "otp_code": code,
-                    "email": user.email,
-                    "expires_minutes": 15,
-                },
-                recipient=user.email,
-            )
-        except Exception:
-            pass
+        # Auto-verify invited users — no OTP needed
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
 
         return _success(
             data={"email": user.email},
-            message="Account created. A 6-digit verification code has been sent to your email.",
+            message="Account created successfully. You can now sign in.",
             status_code=status.HTTP_201_CREATED,
         )
 
@@ -1277,22 +1258,205 @@ class AdminRegisterView(APIView):
         serializer = AdminRegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user: CustomUser = serializer.save()
-        RegisterView._dispatch_verification_email(user)
+        # Admin accounts start as pending — superadmin must approve before login
+        user.is_active = False
+        user.approval_status = CustomUser.ApprovalStatus.PENDING
+        user.save(update_fields=["is_active", "approval_status"])
         org = user.owned_organization
         return _success(
             data={
                 "id": str(user.id),
                 "email": user.email,
                 "role": user.role,
+                "approval_status": user.approval_status,
                 "organization": {
                     "id": str(org.id),
                     "name": org.name,
                     "slug": org.slug,
                 },
             },
-            message=(
-                "Admin account created. "
-                "A verification email has been sent to your address."
-            ),
+            message="Registration submitted. Your account is under review and you will be notified by email once approved.",
             status_code=status.HTTP_201_CREATED,
         )
+
+
+# ── Superadmin: admin registration approvals ──────────────────────────────────
+
+class SuperadminPendingAdminsView(APIView):
+    """GET /api/v1/superadmin/registrations/ — list all admin registrations grouped by status."""
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request: Request) -> Response:
+        admins = CustomUser.objects.filter(role=CustomUser.Role.ADMIN).select_related(
+            "profile"
+        ).prefetch_related("managed_users").order_by("-date_joined")
+
+        def _serialize(u):
+            member_count = u.managed_users.filter(role=CustomUser.Role.USER).count()
+            return {
+                "id": str(u.id),
+                "email": u.email,
+                "approval_status": u.approval_status,
+                "rejection_reason": u.rejection_reason,
+                "date_joined": u.date_joined.isoformat(),
+                "is_active": u.is_active,
+                "first_name": getattr(getattr(u, "profile", None), "first_name", ""),
+                "last_name": getattr(getattr(u, "profile", None), "last_name", ""),
+                "member_count": member_count,
+            }
+
+        pending  = [_serialize(u) for u in admins if u.approval_status == CustomUser.ApprovalStatus.PENDING]
+        approved = [_serialize(u) for u in admins if u.approval_status == CustomUser.ApprovalStatus.APPROVED]
+        rejected = [_serialize(u) for u in admins if u.approval_status == CustomUser.ApprovalStatus.REJECTED]
+
+        return _success(data={
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+            "counts": {"pending": len(pending), "approved": len(approved), "rejected": len(rejected)},
+        })
+
+
+class SuperadminApproveAdminView(APIView):
+    """POST /api/v1/superadmin/registrations/{id}/decide/ — approve or reject an admin."""
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request: Request, admin_id: str) -> Response:
+        try:
+            admin = CustomUser.objects.get(id=admin_id, role=CustomUser.Role.ADMIN)
+        except CustomUser.DoesNotExist:
+            return Response({"success": False, "error": {"message": "Admin not found."}}, status=404)
+
+        action = request.data.get("action")  # "approve" or "reject"
+        reason = request.data.get("reason", "").strip()
+
+        if action == "approve":
+            admin.is_active = True
+            admin.approval_status = CustomUser.ApprovalStatus.APPROVED
+            admin.rejection_reason = ""
+            admin.save(update_fields=["is_active", "approval_status", "rejection_reason"])
+            try:
+                _send_html_email(
+                    subject="Your admin account has been approved",
+                    template="emails/approve_admin.html",
+                    context={
+                        "admin_email": admin.email,
+                        "login_url": f"{_frontend_url()}/login",
+                    },
+                    recipient=admin.email,
+                )
+            except Exception:
+                pass
+            return _success(message=f"Admin {admin.email} approved.")
+
+        elif action == "reject":
+            admin.is_active = False
+            admin.approval_status = CustomUser.ApprovalStatus.REJECTED
+            admin.rejection_reason = reason
+            admin.save(update_fields=["is_active", "approval_status", "rejection_reason"])
+            try:
+                _send_html_email(
+                    subject="Your admin registration was not approved",
+                    template="emails/reject_admin.html",
+                    context={
+                        "admin_email": admin.email,
+                        "reason": reason,
+                    },
+                    recipient=admin.email,
+                )
+            except Exception:
+                pass
+            return _success(message=f"Admin {admin.email} rejected.")
+
+        return Response({"success": False, "error": {"message": "action must be 'approve' or 'reject'."}}, status=400)
+
+
+# ── Admin: invited users list ─────────────────────────────────────────────────
+
+class AdminInviteListView(APIView):
+    """GET /api/v1/admin/members/ — all users invited by this admin with signup status."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        if not (request.user.is_admin or request.user.is_superadmin):
+            raise PermissionDenied()
+
+        invites = InviteToken.objects.filter(
+            invited_by=request.user
+        ).order_by("-created_at")
+
+        result = []
+        for inv in invites:
+            try:
+                user = CustomUser.objects.get(email=inv.email)
+                signup_status = "accepted"
+                user_id = str(user.id)
+                date_joined = user.date_joined.isoformat()
+            except CustomUser.DoesNotExist:
+                signup_status = "pending"
+                user_id = None
+                date_joined = None
+
+            result.append({
+                "invite_id": str(inv.id),
+                "email": inv.email,
+                "invited_role": inv.invited_role,
+                "signup_status": signup_status,
+                "user_id": user_id,
+                "date_joined": date_joined,
+                "invited_at": inv.created_at.isoformat(),
+                "expires_at": inv.expires_at.isoformat(),
+                "is_expired": inv.is_expired,
+                "token": str(inv.token),
+            })
+
+        active_count = sum(1 for r in result if r["signup_status"] == "accepted")
+        pending_count = sum(1 for r in result if r["signup_status"] == "pending")
+
+        return _success(data={
+            "members": result,
+            "counts": {"total": len(result), "accepted": active_count, "pending": pending_count},
+        })
+
+
+class AdminResendInviteView(APIView):
+    """POST /api/v1/admin/members/{invite_id}/resend/ — resend invite email."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, invite_id: str) -> Response:
+        if not (request.user.is_admin or request.user.is_superadmin):
+            raise PermissionDenied()
+
+        try:
+            invite = InviteToken.objects.get(id=invite_id, invited_by=request.user)
+        except InviteToken.DoesNotExist:
+            return Response({"success": False, "error": {"message": "Invite not found."}}, status=404)
+
+        if invite.is_used:
+            return Response({"success": False, "error": {"message": "This invite has already been used."}}, status=400)
+
+        # Extend expiry by 7 days and resend
+        from django.utils import timezone as tz
+        invite.expires_at = tz.now() + tz.timedelta(days=7)
+        invite.save(update_fields=["expires_at"])
+
+        invite_url = f"{_frontend_url()}/invite?token={invite.token}"
+        app_name = getattr(settings, "APP_NAME", "Life Science AI")
+        org_name = getattr(getattr(invite.invited_by, "owned_organization", None), "name", None) or app_name
+        try:
+            _send_html_email(
+                subject=f"{org_name} has invited you to {app_name}",
+                template="emails/invite_link.html",
+                context={
+                    "email": invite.email,
+                    "invited_by": invite.invited_by.email,
+                    "org_name": org_name,
+                    "invite_url": invite_url,
+                    "expires_hours": 168,
+                },
+                recipient=invite.email,
+            )
+        except Exception:
+            pass
+
+        return _success(message=f"Invite resent to {invite.email}.")

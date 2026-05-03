@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>Registration Update – {{ app_name }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#f0f4f8;padding:40px 16px;">
+    <tr>
+      <td align="center">
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:560px;background:#ffffff;border-radius:14px;
+                      box-shadow:0 4px 28px rgba(0,0,0,0.09);overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center"
+                style="background:linear-gradient(135deg,#1e293b 0%,#334155 100%);
+                       padding:38px 40px 34px;">
+              <!-- Icon -->
+              <div style="width:56px;height:56px;background:rgba(239,68,68,0.15);
+                          border:2px solid rgba(239,68,68,0.35);border-radius:50%;
+                          display:inline-flex;align-items:center;justify-content:center;
+                          margin-bottom:18px;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+                     xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="1.8"/>
+                  <path d="M15 9l-6 6M9 9l6 6" stroke="#ef4444" stroke-width="2"
+                        stroke-linecap="round"/>
+                </svg>
+              </div>
+              <h1 style="margin:0;color:#f1f5f9;font-size:20px;font-weight:700;
+                         letter-spacing:-0.3px;">
+                {{ app_name }}
+              </h1>
+              <p style="margin:8px 0 0;color:rgba(241,245,249,0.55);font-size:13px;">
+                Admin Registration Decision
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 12px;">
+              <h2 style="margin:0 0 10px;color:#111827;font-size:19px;font-weight:700;">
+                Your registration was not approved
+              </h2>
+              <p style="margin:0 0 28px;color:#6b7280;font-size:15px;line-height:1.7;">
+                Hi <strong style="color:#111827;">{{ admin_email }}</strong>,<br/>
+                thank you for registering on <strong style="color:#111827;">{{ app_name }}</strong>.
+                After reviewing your application, we were unable to approve your admin account at this time.
+              </p>
+
+              {% if reason %}
+              <!-- Reason box -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="margin-bottom:28px;">
+                <tr>
+                  <td style="background:#fef2f2;border-left:4px solid #ef4444;
+                              border-radius:0 8px 8px 0;padding:18px 20px;">
+                    <p style="margin:0 0 6px;font-size:11px;font-weight:700;
+                               color:#ef4444;text-transform:uppercase;letter-spacing:0.06em;">
+                      Reason for rejection
+                    </p>
+                    <p style="margin:0;color:#374151;font-size:14px;line-height:1.65;">
+                      {{ reason }}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% else %}
+              <p style="margin:0 0 28px;color:#9ca3af;font-size:13px;line-height:1.6;
+                         background:#f9fafb;border-radius:8px;padding:14px 16px;">
+                No specific reason was provided. Please contact support if you have questions.
+              </p>
+              {% endif %}
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid #f1f5f9;margin:0 0 24px;"/>
+
+              <!-- Next steps -->
+              <p style="margin:0 0 12px;color:#374151;font-size:14px;font-weight:600;">
+                What can you do next?
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="margin-bottom:28px;">
+                <tr>
+                  <td style="padding:5px 0;">
+                    <span style="display:inline-block;width:6px;height:6px;background:#6b7280;
+                                 border-radius:50%;margin-right:10px;vertical-align:middle;"></span>
+                    <span style="color:#6b7280;font-size:13px;vertical-align:middle;">
+                      Reply to this email if you believe this was an error
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:5px 0;">
+                    <span style="display:inline-block;width:6px;height:6px;background:#6b7280;
+                                 border-radius:50%;margin-right:10px;vertical-align:middle;"></span>
+                    <span style="color:#6b7280;font-size:13px;vertical-align:middle;">
+                      Contact the platform administrator for further assistance
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8fafc;border-top:1px solid #f1f5f9;
+                       padding:20px 40px;text-align:center;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
+                This is an automated message from <strong>{{ app_name }}</strong>.
+                Please do not reply directly to this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

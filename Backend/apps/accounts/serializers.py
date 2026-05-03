@@ -177,7 +177,14 @@ class LoginSerializer(serializers.Serializer):
             )
 
         if not user.is_active:
-            raise serializers.ValidationError({"email": "This account has been deactivated."})
+            if user.role == CustomUser.Role.ADMIN and user.approval_status == CustomUser.ApprovalStatus.PENDING:
+                raise serializers.ValidationError({"email": "Your registration is under review. You will be notified by email once approved."})
+            if user.role == CustomUser.Role.ADMIN and user.approval_status == CustomUser.ApprovalStatus.REJECTED:
+                reason = f" Reason: {user.rejection_reason}" if user.rejection_reason else ""
+                raise serializers.ValidationError({"email": f"Your registration was rejected.{reason}"})
+            if user.role == CustomUser.Role.ADMIN and user.approval_status == CustomUser.ApprovalStatus.APPROVED:
+                raise serializers.ValidationError({"email": "Your account has been deactivated by the platform administrator. Please contact support to reactivate your account."})
+            raise serializers.ValidationError({"email": "This account has been deactivated. Please contact your administrator."})
 
         # --- lockout check (re-read is_locked which uses locked_until > now()) ---
         if user.is_locked:
@@ -567,8 +574,13 @@ class AdminRegisterSerializer(serializers.Serializer):
 
     def validate_email(self, value: str) -> str:
         value = value.lower().strip()
-        if CustomUser.objects.filter(email=value).exists():
-            raise serializers.ValidationError("An account with this email already exists.")
+        existing = CustomUser.objects.filter(email=value).first()
+        if existing:
+            if existing.approval_status == CustomUser.ApprovalStatus.REJECTED:
+                # Clean up the rejected account so the user can re-register fresh.
+                existing.delete()
+            else:
+                raise serializers.ValidationError("An account with this email already exists.")
         return value
 
     def validate_password(self, value: str) -> str:
