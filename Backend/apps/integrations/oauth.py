@@ -219,6 +219,11 @@ def refresh_access_token(credential: OrgIntegrationCredential) -> OrgIntegration
 
 def _redirect_uri() -> str:
     base = getattr(settings, "BACKEND_URL", "http://localhost:8000")
+    
+    # Force HTTPS in production
+    if not settings.DEBUG and base.startswith("http://"):
+        base = base.replace("http://", "https://", 1)
+        
     return f"{base}/api/v1/integrations/callback/"
 
 

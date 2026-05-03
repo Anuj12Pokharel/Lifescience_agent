@@ -465,6 +465,10 @@ class GmailConnectView(APIView):
         client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         redirect_uri = request.build_absolute_uri("/api/v1/integrations/gmail/callback/")
         
+        # Force HTTPS in production to avoid proxy header issues
+        if not settings.DEBUG and redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
         # DEBUG: Log the redirect URI to container logs
         print(f"DEBUG: Gmail OAuth redirect_uri: {redirect_uri}")
 
@@ -528,6 +532,10 @@ class GmailCallbackView(APIView):
         client_id     = os.environ.get("GOOGLE_CLIENT_ID", "")
         client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
         redirect_uri  = request.build_absolute_uri("/api/v1/integrations/gmail/callback/")
+        
+        # Force HTTPS in production
+        if not settings.DEBUG and redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
 
         token_resp = requests.post(
             GMAIL_TOKEN_URL,
