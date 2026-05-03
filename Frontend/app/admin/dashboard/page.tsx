@@ -30,36 +30,52 @@ export default function AdminDashboardPage() {
 
   return (
     <DashboardLayout requireAdmin>
-      <div className="flex flex-col gap-8 max-w-6xl mx-auto">
-        <div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-white mb-3">Admin Overview</h1>
-          <p className="text-lg text-slate-400 max-w-3xl leading-relaxed">
-            Welcome back, <span className="text-cyan-400 font-semibold">{user?.email}</span>. Here is the current platform status at a glance.
-          </p>
+      <div className="flex flex-col gap-10 max-w-7xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 to-slate-950 border border-white/5 p-8 md:p-10">
+          <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-cyan-500/10 blur-[100px] pointer-events-none" />
+          <div className="relative z-10">
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white mb-4">
+              Dashboard <span className="text-cyan-400">Overview</span>
+            </h1>
+            <p className="text-base md:text-lg text-slate-400 max-w-2xl leading-relaxed">
+              Welcome back, <span className="text-white font-bold">{user?.email?.split('@')[0]}</span>. Your platform is currently <span className="text-emerald-400 font-semibold italic">fully operational</span> with all systems healthy.
+            </p>
+          </div>
         </div>
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {metricCards.map(({ label, value, icon: Icon, color, bg, href }) => {
             const cardContent = (
-              <Card className={`bg-slate-900/60 backdrop-blur-sm border border-slate-700/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-800/60 ${href ? 'cursor-pointer hover:shadow-xl hover:shadow-cyan-500/20' : ''}`}>
-                <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0 relative">
-                  <div className={`p-3 rounded-xl ${bg} backdrop-blur-md border border-white/10 cursor-pointer group`}>
-                    <Icon className={`h-6 w-6 ${color} drop-shadow-sm transition-transform duration-200 group-hover:scale-110`} />
+              <Card className="h-full bg-slate-900/40 backdrop-blur-md border border-white/5 hover:border-cyan-500/30 transition-all duration-500 group relative overflow-hidden rounded-2xl">
+                <div className={`absolute top-0 right-0 p-8 opacity-5 transition-transform duration-500 group-hover:scale-150 group-hover:rotate-12 ${color}`}>
+                  <Icon className="h-24 w-24" />
+                </div>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-2.5 rounded-xl ${bg} border border-white/5`}>
+                      <Icon className={`h-5 w-5 ${color}`} />
+                    </div>
+                    {href && (
+                      <div className="p-1 rounded-full bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                      </div>
+                    )}
                   </div>
-                  {href && <ArrowRight className="h-4 w-4 text-slate-400 opacity-100 transition-opacity absolute right-6 top-6" />}
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className={`text-4xl font-black tracking-tight ${color} drop-shadow-sm mb-2`}>
-                    {value === undefined ? <span className="opacity-30">—</span> : value}
+                  <div className="space-y-1">
+                    <div className="text-3xl font-black tracking-tighter text-white">
+                      {value ?? '0'}
+                    </div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 group-hover:text-slate-300 transition-colors">
+                      {label}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-300">{label}</p>
                 </CardContent>
               </Card>
             );
 
             return href ? (
-              <Link key={label} href={href} className="group block focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background rounded-xl">
+              <Link key={label} href={href} className="block transition-transform hover:-translate-y-1">
                 {cardContent}
               </Link>
             ) : (
@@ -68,14 +84,13 @@ export default function AdminDashboardPage() {
           })}
         </div>
 
-        {/* Quick Links / Modules section */}
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3 text-white">
-            <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/30 cursor-pointer">
-              <Shield className="h-6 w-6 text-amber-400 transition-transform duration-200 hover:scale-110" />
-            </div>
-            Administrative Modules
-          </h2>
+        {/* Administrative Modules */}
+        <div className="space-y-8">
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-white tracking-tight">Administrative Modules</h2>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {[
                { title: 'Members', desc: 'View accounts, manage roles, agent access, and track invitations all in one place.', href: '/admin/users', color: 'from-[#00D4FF]/20 to-transparent', icon: Users },
@@ -91,8 +106,11 @@ export default function AdminDashboardPage() {
                    <div className="bg-slate-800/60 w-12 h-12 rounded-xl flex items-center justify-center mb-6 border border-slate-600/50 group-hover:border-cyan-500/50 transition-all duration-300 cursor-pointer">
                      <ModuleIcon className="h-6 w-6 text-cyan-400 group-hover:text-cyan-300 transition-colors transition-transform duration-200 group-hover:scale-110" />
                    </div>
-                   <h3 className="text-xl font-bold text-white mb-3 group-hover:text-cyan-300 transition-colors">{title}</h3>
-                   <p className="text-slate-400 leading-relaxed group-hover:text-slate-300 transition-colors">{desc}</p>
+                   <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                     {title}
+                     <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-cyan-400" />
+                   </h3>
+                   <p className="text-sm text-slate-400 leading-relaxed line-clamp-2">{desc}</p>
                  </div>
                </Link>
              ))}

@@ -658,6 +658,7 @@ class AdminInviteUserView(APIView):
         except Exception:
             pass
 
+
         return _success(
             data={"email": email, "invite_token": str(invite.token)},
             message=f"Invite sent to '{email}'. Link expires in 72 hours.",

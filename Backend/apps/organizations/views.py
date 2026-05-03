@@ -37,7 +37,9 @@ class MyOrganizationView(APIView):
     permission_classes = [IsOrgOwner]
 
     def get(self, request):
-        org = request.user.owned_organization
+        org = getattr(request.user, "owned_organization", None)
+        if not org:
+            return Response({"detail": "No organization associated with this account."}, status=404)
         return _ok(OrganizationSerializer(org).data)
 
     def patch(self, request):
@@ -131,11 +133,27 @@ class OrgAgentToggleView(APIView):
 
 class AdminStatsView(APIView):
     """Admin sees a summary: how many members and how many groups they own."""
-    permission_classes = [IsOrgOwner]
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        
+        # Superadmins bypass ownership checks for safety, though they usually
+        # manage the platform from the superadmin UI.
+        if user.is_superadmin:
+            return True
+            
+        return user.is_admin and hasattr(user, "owned_organization")
 
     def get(self, request):
         from apps.agents.group_models import AgentGroup
-        org = request.user.owned_organization
+        org = getattr(request.user, "owned_organization", None)
+        if not org:
+            return _ok({
+                "member_count": 0,
+                "group_count": 0,
+                "subscribed_agent_count": 0,
+            })
         member_count = org.member_count()
         group_count = AgentGroup.objects.filter(created_by=request.user, is_active=True).count()
         agent_count = org.enabled_agent_count()

@@ -3,6 +3,10 @@ import uuid
 from django.conf import settings
 from django.db import models
 
+# Import GmailCredential so Django's migration framework discovers it
+from apps.integrations.gmail_models import GmailCredential  # noqa: F401
+
+
 
 class AgentIntegrationProvider(models.Model):
     """

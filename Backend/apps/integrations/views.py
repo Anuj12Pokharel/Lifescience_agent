@@ -432,3 +432,184 @@ def resolve_credential_for_user(user, agent) -> OrgIntegrationCredential | None:
         return None
 
     return get_valid_credential(cred)
+
+
+# ── Gmail OAuth (per-org invitation sender) ────────────────────────────────────
+
+GMAIL_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+GMAIL_SCOPES    = "https://www.googleapis.com/auth/gmail.send email profile"
+
+
+class GmailConnectView(APIView):
+    """
+    Step 1 of Gmail OAuth.
+    GET /api/v1/integrations/gmail/connect/
+    Returns {"auth_url": "https://accounts.google.com/..."}
+    Admin opens this URL in a popup, approves, and Google redirects to /gmail/callback/.
+    """
+    permission_classes = [IsOrgOwner]
+
+    def get(self, request):
+        import os, secrets, urllib.parse
+        from django.core.cache import cache
+        from apps.integrations.encryption import encrypt
+
+        org = request.user.owned_organization
+        state = secrets.token_urlsafe(32)
+        payload = {"org_id": str(org.id), "user_id": str(request.user.id)}
+        import json
+        cache.set(f"gmail_state:{state}", encrypt(json.dumps(payload)), timeout=600)
+
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        redirect_uri = request.build_absolute_uri("/api/v1/integrations/gmail/callback/")
+        
+        # Force HTTPS in production to avoid proxy header issues
+        if not settings.DEBUG and redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+        # DEBUG: Log the redirect URI to container logs
+        print(f"DEBUG: Gmail OAuth redirect_uri: {redirect_uri}")
+
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": GMAIL_SCOPES,
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state,
+        }
+        auth_url = GMAIL_AUTH_URL + "?" + urllib.parse.urlencode(params)
+        return _ok({"auth_url": auth_url})
+
+
+class GmailCallbackView(APIView):
+    """
+    Step 2: Google redirects here after admin grants permission.
+    GET /api/v1/integrations/gmail/callback/?code=X&state=Y
+    Exchanges code for tokens, fetches Gmail address, stores credential.
+    Redirects to frontend admin org settings page.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import os, json
+        from django.core.cache import cache
+        from django.shortcuts import redirect
+        from apps.integrations.encryption import decrypt, encrypt
+        from apps.integrations.gmail_models import GmailCredential
+        from django.utils import timezone
+
+        code  = request.query_params.get("code")
+        state = request.query_params.get("state")
+        error = request.query_params.get("error")
+        frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+
+        if error:
+            return redirect(f"{frontend_base}/admin/organization?gmail=error&reason={error}")
+
+        raw = cache.get(f"gmail_state:{state}")
+        if not raw:
+            return redirect(f"{frontend_base}/admin/organization?gmail=error&reason=state_expired")
+        cache.delete(f"gmail_state:{state}")
+
+        try:
+            payload = json.loads(decrypt(raw))
+        except Exception:
+            return redirect(f"{frontend_base}/admin/organization?gmail=error&reason=invalid_state")
+
+        from apps.organizations.models import Organization
+        from apps.accounts.models import CustomUser
+
+        try:
+            org  = Organization.objects.get(pk=payload["org_id"])
+            user = CustomUser.objects.get(pk=payload["user_id"])
+        except Exception:
+            return redirect(f"{frontend_base}/admin/organization?gmail=error&reason=not_found")
+
+        client_id     = os.environ.get("GOOGLE_CLIENT_ID", "")
+        client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+        redirect_uri  = request.build_absolute_uri("/api/v1/integrations/gmail/callback/")
+        
+        # Force HTTPS in production
+        if not settings.DEBUG and redirect_uri.startswith("http://"):
+            redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+        token_resp = requests.post(
+            GMAIL_TOKEN_URL,
+            data={
+                "grant_type":    "authorization_code",
+                "code":          code,
+                "redirect_uri":  redirect_uri,
+                "client_id":     client_id,
+                "client_secret": client_secret,
+            },
+            timeout=15,
+        )
+        if not token_resp.ok:
+            return redirect(f"{frontend_base}/admin/organization?gmail=error&reason=token_exchange_failed")
+
+        token_data = token_resp.json()
+        access_token  = token_data.get("access_token", "")
+        refresh_token = token_data.get("refresh_token", "")
+        expires_in    = token_data.get("expires_in")
+
+        # Fetch the Gmail address
+        profile_resp = requests.get(
+            GMAIL_PROFILE_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        )
+        gmail_email = ""
+        if profile_resp.ok:
+            gmail_email = profile_resp.json().get("emailAddress", "")
+
+        cred, _ = GmailCredential.objects.get_or_create(org=org)
+        cred.gmail_email   = gmail_email
+        cred.connected_by  = user
+        cred.is_active     = True
+        cred.set_access_token(access_token)
+        if refresh_token:
+            cred.set_refresh_token(refresh_token)
+        if expires_in:
+            cred.token_expiry = timezone.now() + timezone.timedelta(seconds=int(expires_in))
+        cred.save()
+
+        return redirect(f"{frontend_base}/admin/organization?gmail=connected&email={gmail_email}")
+
+
+class GmailStatusView(APIView):
+    """
+    GET /api/v1/integrations/gmail/status/
+    Returns whether Gmail is connected for the admin's org.
+    """
+    permission_classes = [IsOrgOwner]
+
+    def get(self, request):
+        from apps.integrations.gmail_models import GmailCredential
+        org = getattr(request.user, "owned_organization", None)
+        if not org:
+            return _ok({"connected": False, "gmail_email": None})
+        cred = GmailCredential.objects.filter(org=org, is_active=True).first()
+        if cred:
+            return _ok({"connected": True, "gmail_email": cred.gmail_email})
+        return _ok({"connected": False, "gmail_email": None})
+
+
+class GmailDisconnectView(APIView):
+    """
+    DELETE /api/v1/integrations/gmail/disconnect/
+    Removes the stored Gmail credential.
+    """
+    permission_classes = [IsOrgOwner]
+
+    def delete(self, request):
+        from apps.integrations.gmail_models import GmailCredential
+        org = request.user.owned_organization
+        GmailCredential.objects.filter(org=org).update(
+            is_active=False, access_token="", refresh_token=""
+        )
+        return _ok(message="Gmail disconnected.")
+

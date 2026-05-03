@@ -2,6 +2,10 @@ from django.urls import path
 
 from apps.integrations.views import (
     ApiKeyConnectView,
+    GmailCallbackView,
+    GmailConnectView,
+    GmailDisconnectView,
+    GmailStatusView,
     MessengerConfigView,
     OAuthCallbackView,
     OAuthInitiateView,
@@ -35,4 +39,10 @@ urlpatterns = [
 
     # ── Messenger config (default channel) ───────────────────────────────────
     path("messenger-config/", MessengerConfigView.as_view(), name="messenger-config"),
+
+    # ── Gmail OAuth (send invitation emails from admin's Gmail) ───────────────
+    path("gmail/connect/",    GmailConnectView.as_view(),    name="gmail-connect"),
+    path("gmail/callback/",   GmailCallbackView.as_view(),   name="gmail-callback"),
+    path("gmail/status/",     GmailStatusView.as_view(),     name="gmail-status"),
+    path("gmail/disconnect/", GmailDisconnectView.as_view(), name="gmail-disconnect"),
 ]

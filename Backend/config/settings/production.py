@@ -8,8 +8,9 @@ DEBUG = False
 # ── Security headers ──────────────────────────────────────────────────────────
 
 # HTTPS/HSTS
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 SECURE_HSTS_SECONDS = 31536000          # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -47,7 +48,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     "connect_timeout": 10,
-    "sslmode": "require",
+    "sslmode": "prefer",
 }
 
 # ── Email ─────────────────────────────────────────────────────────────────────
