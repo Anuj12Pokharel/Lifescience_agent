@@ -90,8 +90,7 @@ export default function InviteSignupPage() {
         password_confirm: form.password_confirm,
       });
       setSubmitted(true);
-      // Redirect to OTP verification with email in query
-      setTimeout(() => router.push(`/verify-otp?email=${encodeURIComponent(inviteInfo.email)}`), 800);
+      setTimeout(() => router.push('/login'), 1500);
     } catch (_) { /* error shown inline */ }
   };
 
@@ -135,11 +134,11 @@ export default function InviteSignupPage() {
       <div style={STYLES.page}>
         <style>{CSS}</style>
         <div style={{ ...STYLES.card, textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#E8F4FF', marginBottom: 10 }}>Check your email</h2>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#E8F4FF', marginBottom: 10 }}>Account created!</h2>
           <p style={{ color: 'rgba(120,170,220,0.65)', lineHeight: 1.7, fontSize: 14 }}>
-            We sent a 6-digit verification code to <strong style={{ color: '#00D4FF' }}>{inviteInfo?.email}</strong>.
-            Redirecting to verification…
+            Your account for <strong style={{ color: '#00D4FF' }}>{inviteInfo?.email}</strong> is ready.
+            Redirecting you to sign in…
           </p>
         </div>
       </div>
@@ -252,7 +251,7 @@ export default function InviteSignupPage() {
           <button type="submit" disabled={!canSubmit} style={{ ...STYLES.submitBtn, opacity: canSubmit ? 1 : 0.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
             {completeInvite.isPending
               ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Creating account…</>
-              : <>Create Account &amp; Verify Email <ArrowRight size={16} /></>
+              : <>Create Account <ArrowRight size={16} /></>
             }
           </button>
         </form>
